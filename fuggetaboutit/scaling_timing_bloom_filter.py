@@ -155,7 +155,7 @@ class ScalingTimingBloomFilter(object):
 
 
 if __name__ == "__main__":
-    from tests.utils import TimingBlock
+    from utils import TimingBlock
     import time
     N = int(500)
     decay_time = 5

@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 
-from scaling_timing_bloom_filter import ScalingTimingBloomFilter
+from fuggetaboutit.scaling_timing_bloom_filter import ScalingTimingBloomFilter
 import tornado.ioloop
 import tornado.testing
 import time
-from utils import TimingBlock
+from fuggetaboutit.utils import TimingBlock
 
 class TestScalingTimingBloomFilter(tornado.testing.AsyncTestCase):
     def test_decay(self):

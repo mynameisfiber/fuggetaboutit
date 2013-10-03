@@ -1,11 +1,11 @@
 #!/usr/bin/env python
 
-from timing_bloom_filter import TimingBloomFilter
+from fuggetaboutit.timing_bloom_filter import TimingBloomFilter
 import tornado.ioloop
 import tornado.testing
 import struct
 import time
-from utils import TimingBlock
+from fuggetaboutit.utils import TimingBlock
 
 class TestTimingBloomFilter(tornado.testing.AsyncTestCase):
     def test_decay(self):

@@ -114,7 +114,7 @@ class TimingBloomFilter(CountingBloomFilter):
 
 
 if __name__ == "__main__":
-    from tests.utils import TimingBlock
+    from utils import TimingBlock
     N = int(1e5)
 
     tbf = TimingBloomFilter(2*N, decay_time=15)

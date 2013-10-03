@@ -1,2 +1,5 @@
 *.pyc
 *.sw[opnm]
+build/
+dist/
+fuggetaboutit.egg-info/
