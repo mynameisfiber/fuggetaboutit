@@ -4,12 +4,15 @@
 > auto-scaling probabilistic time windowed set inclusion datastructure written
 > in pure python
 
+### what is?
+
 What does this mean?  Well... it means you can have a rolling window view on
 unique items in a stream (using the `TimingBloomFilter` object) and also have
 it rescale itself when the number of unique items increases beyond what you had
-anticipated (using the `ScalingTimingBloomFilter`).  And, as always, since this
-is built on bloom filters the number of bits per entry is generally EXCEEDINGLY
-small, letting you keep track of many items without using too many resources.
+anticipated (using the `ScalingTimingBloomFilter`).  And, since this is built
+on bloom filters, the number of bits per entry is generally EXCEEDINGLY small
+letting you keep track of many items using a small amount of resources while
+still having very tight bounds on error.
 
 So, let's say you have a stream coming in 24 hours a day, 7 days a week.  This
 stream contains phone numbers and you want to ask the question "Have I seen
@@ -50,4 +53,25 @@ def handle_message(phone_number):
     cache.add(phone_number)
 ```
 
-This will automatically build new bloom filters as needed, and delete unused one.
+This will automatically build new bloom filters as needed, and delete unused
+one.  In this case, the capacity is simply a baseline capacity and we can
+easily grow beyond it.
+
+### speed
+
+Did we mention that this thing is fast?  It's all built on python's native
+`array` module and tries as hard as it can to be performant.  On a 2011 MacBook
+Air, I get:
+
+**ScalingTimingBloomFilter**:
+* Adding 200000 values: 5.104190s (39183.495322 / s)
+* Testing 200000 positive values: 7.245727s (27602.475896 / s)
+* Testing 200000 negative values: 5.937196s (33685.935154 / s)
+* Deaying: between 2.058376s - 0.606063s depending on state
+
+
+**TimingBloomFilter**:
+* Adding 100000 values: 2.077839s (48126.926544 / s)
+* Testing 100000 positive values: 2.268268s (44086.503770 / s)
+* Testing 100000 negative values: 0.982043s (101828.532112 / s)
+* Decaying: 0.966145s

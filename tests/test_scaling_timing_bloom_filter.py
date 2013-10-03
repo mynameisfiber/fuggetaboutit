@@ -18,8 +18,8 @@ class TestScalingTimingBloomFilter(tornado.testing.AsyncTestCase):
         assert stbf.contains("hello") == False
 
     def test_holistic(self):
-        n = int(1e5)
-        N = int(2e5)
+        n = int(1e4)
+        N = int(2e4)
         T = 15
         print "ScalingTimingBloom with capacity %e and expiration time %ds" % (n, T)
 
