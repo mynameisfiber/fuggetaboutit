@@ -10,7 +10,7 @@ import time
 class TimingBloomFilter(CountingBloomFilter):
     def __init__(self, *args, **kwargs):
         self.decay_time = kwargs.pop("decay_time", None)
-        self._ioloop = kwargs.pop("ioloop", None) or tornado.ioloop.IOLoop.instance()
+        ioloop = kwargs.pop("ioloop", None)
         assert self.decay_time is not None, "Must provide decay_time parameter"
 
         super(TimingBloomFilter, self).__init__(*args, **kwargs)
@@ -20,15 +20,23 @@ class TimingBloomFilter(CountingBloomFilter):
         self.num_non_zero = 0
 
         self._initialize()
-        self._setup_decay()
+        self.set_ioloop(ioloop)
 
     def _initialize(self):
         self.ring_size = (1 << (struct.calcsize(self.dtype) * 8)) - 1
         self.dN = self.ring_size / 2
         self.seconds_per_tick = self.decay_time / float(self.dN)
 
+    def set_ioloop(self, ioloop=None):
+        self._ioloop = ioloop or tornado.ioloop.IOLoop.instance()
+        self._setup_decay()
+
     def _setup_decay(self):
         self.time_per_decay = self.seconds_per_tick * 1000.0 / 2.0
+        try:
+            self.stop()
+        except:
+            pass
         self._callbacktimer = tornado.ioloop.PeriodicCallback(self.decay, self.time_per_decay, self._ioloop)
 
     def _tick(self):
@@ -86,7 +94,7 @@ class TimingBloomFilter(CountingBloomFilter):
     def tofile(self, f):
         header = struct.pack("dQ", self.decay_time, self.num_non_zero)
         f.write(header + "\n")
-        super(TimingBloomFilter, self).tofile(self, f)
+        super(TimingBloomFilter, self).tofile(f)
 
     @classmethod
     def fromfile(cls, f):
@@ -95,10 +103,11 @@ class TimingBloomFilter(CountingBloomFilter):
         """
         header = f.readline()[:-1]
         decay_time, num_non_zero = struct.unpack("dQ", header)
-        self = super(TimingBloomFilter, cls).tofile(cls, f)
+        self = super(TimingBloomFilter, cls).fromfile(f)
 
         self.decay_time = decay_time
         self.num_non_zero = num_non_zero
+        self._ioloop = None
         self._initialize()
         self._setup_decay()
         return self

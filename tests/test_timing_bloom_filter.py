@@ -21,7 +21,7 @@ class TestTimingBloomFilter(tornado.testing.AsyncTestCase):
     def test_holistic(self):
         n = int(2e4)
         N = int(1e4)
-        T = 15
+        T = 5
         print "TimingBloom with capacity %e and expiration time %ds" % (n, T)
 
         with TimingBlock("Initialization"):

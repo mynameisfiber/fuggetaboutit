@@ -14,7 +14,6 @@ class ScalingTimingBloomFilter(object):
         assert 0 < error < 1, "error must be 0 < error < 1"
 
         self.max_load_factor = max_load_factor
-        self._ioloop = ioloop or tornado.ioloop.IOLoop.instance()
 
         self.error = error
         self.error_tightning_ratio = error_tightning_ratio
@@ -31,10 +30,19 @@ class ScalingTimingBloomFilter(object):
         self._add_new_bloom()
         self.max_load_factor_raw = int(self.blooms[0]["bloom"].num_hashes * capacity * max_load_factor)
 
+        self.set_ioloop(ioloop)
+
+
+    def set_ioloop(self, ioloop=None):
+        self._ioloop = ioloop or tornado.ioloop.IOLoop.instance()
         self._setup_decay()
 
     def _setup_decay(self):
         self.time_per_decay = self.blooms[0]["bloom"].time_per_decay
+        try:
+            self.stop()
+        except:
+            pass
         self._callbacktimer = tornado.ioloop.PeriodicCallback(self.decay, self.time_per_decay, self._ioloop)
 
     def _add_new_bloom(self):
@@ -111,7 +119,6 @@ class ScalingTimingBloomFilter(object):
             f.write(bheader + "\n")
             bloom["bloom"].tofile(f)
 
-
     @classmethod
     def fromfile(cls, f):
         """
@@ -124,7 +131,7 @@ class ScalingTimingBloomFilter(object):
         if self.growth_factor == -1:
             self.growth_factor = None
 
-        self.blooms = {}
+        self.blooms = [ ]
         for i in range(N):
             bheader = f.readline()[:-1]
             _id, error, capacity = struct.unpack("Qdd", bheader)
@@ -135,6 +142,8 @@ class ScalingTimingBloomFilter(object):
                 "capacity" : capacity,
                 "bloom" : bloom,
             })
+
+        self._ioloop = None
         self._setup_decay()    
         return self
 
@@ -143,6 +152,7 @@ class ScalingTimingBloomFilter(object):
 
     def __add__(self, other):
         return self.add(other)
+
 
 if __name__ == "__main__":
     from tests.utils import TimingBlock
