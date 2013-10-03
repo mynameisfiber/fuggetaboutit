@@ -1,4 +1,52 @@
 # Fugget About It
 [![Build Status](https://secure.travis-ci.org/mynameisfiber/fuggetaboutit.png?branch=master)](http://travis-ci.org/mynameisfiber/fuggetaboutit)
 
-Probabilistic time windowed set inclusion datastructure written in pure python
+    probabilistic time windowed set inclusion datastructure written in pure python
+
+What does this mean?  Well... it means you can have a rolling window view on
+unique items in a stream (using the `TimingBloomFilter` object) and also have
+it rescale itself when the number of unique items increases beyond what you had
+anticipated (using the `ScalingTimingBloomFilter`).  And, as always, since this
+is built on bloom filters the number of bits per entry is generally EXCEEDINGLY
+small, letting you keep track of many items without using too many resources.
+
+So, let's say you have a stream coming in 24 hours a day, 7 days a week.  This
+stream contains phone numbers and you want to ask the question "Have I seen
+this phone number in the past day?".  This could be answered with the following
+code stub:
+
+```
+from fuggetaboutit import TimingBloomFilter
+
+cache = TimingBloomFilter(capacity=1000000, decay_time=24*60*60).start()
+
+def handle_message(phone_number):
+    if phonenumber in cache:
+        print "I have seen this before: ", phone_number
+    cache.add(phone_number)
+```
+
+Assuming you have a `tornado.ioloop` running, this will automatically forget
+old values for you and only print if the phone number has been seen *in the
+last 24hours*.  (NOTE: If you do not have an IOLoop running, don't worry...
+just call the `TimingBloomFilter.decay()` method every half a decay interval or
+every 12 hours in this example).
+
+Now, this example assumed you had apriori knowledge about how many unique phone
+numbers you would expect -- we told fuggetaboutit that we would have at most
+1000000 unique phone numbers.  What happens if we don't know this number
+beforehand or we know that this value varies wildly?  In this case, we can use
+the `ScalingTimingBloomFilter`
+
+```
+from fuggetaboutit import ScalingTimingBloomFilter
+
+cache = ScalingTimingBloomFilter(capacity=1000000, decay_time=24*60*60).start()
+
+def handle_message(phone_number):
+    if phonenumber in cache:
+        print "I have seen this before: ", phone_number
+    cache.add(phone_number)
+```
+
+This will automatically build new bloom filters as needed, and delete unused one.
