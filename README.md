@@ -1,7 +1,8 @@
 # Fugget About It
 [![Build Status](https://secure.travis-ci.org/mynameisfiber/fuggetaboutit.png?branch=master)](http://travis-ci.org/mynameisfiber/fuggetaboutit)
 
-    probabilistic time windowed set inclusion datastructure written in pure python
+> auto-scaling probabilistic time windowed set inclusion datastructure written
+> in pure python
 
 What does this mean?  Well... it means you can have a rolling window view on
 unique items in a stream (using the `TimingBloomFilter` object) and also have
