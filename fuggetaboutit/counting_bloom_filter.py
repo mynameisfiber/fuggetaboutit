@@ -1,19 +1,18 @@
 #!/usr/bin/env python
 
-import array
+import numpy as np
 import struct
 import math
 import mmh3
 
 
 class CountingBloomFilter(object):
-    def __init__(self, capacity, error=0.005, dtype="B"):
+    def __init__(self, capacity, error=0.005):
         self.capacity = capacity
         self.error = error
         self.num_bytes = int(-capacity * math.log(error) / math.log(2)**2) + 1
         self.num_hashes = int(self.num_bytes / capacity * math.log(2)) + 1
-        self.dtype = dtype
-        self.data = array.array(dtype, (0,) * self.num_bytes) 
+        self.data = np.zeros((self.num_bytes,), dtype=np.uint8, order='C')
 
     def _indexes(self, key):
         """
@@ -62,7 +61,7 @@ class CountingBloomFilter(object):
         """
         Writes the bloom into the given fileobject.
         """
-        header = struct.pack("QdQQc", self.capacity, self.error, self.num_bytes, self.num_hashes, self.dtype)
+        header = struct.pack("QdQQ", self.capacity, self.error, self.num_bytes, self.num_hashes)
         f.write(header + "\n")
         self.data.tofile(f)
 
@@ -73,9 +72,8 @@ class CountingBloomFilter(object):
         """
         self = cls.__new__(cls)
         header = f.readline()[:-1]
-        self.capacity, self.error, self.num_bytes, self.num_hashes, self.dtype = struct.unpack("QdQQc", header)
-        self.data = array.array(self.dtype)
-        self.data.fromfile(f, self.num_bytes)
+        self.capacity, self.error, self.num_bytes, self.num_hashes = struct.unpack("QdQQ", header)
+        self.data = np.fromfile(f, dtype=np.uint8, count=self.num_bytes)
         return self
 
     def __contains__(self, key):

@@ -6,12 +6,20 @@ micha gorelick, mynameisfiber@gmail.com
 http://micha.gd/
 """
 
-from setuptools import setup
+from setuptools import setup, Extension
+import numpy.distutils.misc_util
+
+_optimizations = Extension(
+    'fuggetaboutit._optimizations',
+    sources = ['fuggetaboutit/_optimizations.c', ],
+    extra_compile_args = ["-O3", "-std=c99", "-fopenmp", "-Wall", "-p", "-pg", ],
+    extra_link_args = ["-lgomp", "-lc"],
+)
 
 setup(
     name = 'fuggetaboutit',
     version = '0.1.0',
-    description = 'pure python implementations of a counting bloom filter, a' \
+    description = 'implementations of a counting bloom filter, a' \
         'timing bloom filter and a scaling timing bloom filter. ie: bloom' \
         'filters for the stream',
     author = 'Micha Gorelick',
@@ -27,7 +35,9 @@ setup(
         "License :: OSI Approved :: GNU Lesser General Public License v3 or later (LGPLv3+)",
     ],
 
-    packages = ['fuggetaboutit',],
+    packages = ['fuggetaboutit', 'fuggetaboutit.tests'],
+    ext_modules = [_optimizations,],
+    include_dirs = numpy.distutils.misc_util.get_numpy_include_dirs(),
 
     install_requires = [
         "mmh3",

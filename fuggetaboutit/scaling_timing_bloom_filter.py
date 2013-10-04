@@ -7,7 +7,7 @@ import struct
 import operator
 
 class ScalingTimingBloomFilter(object):
-    def __init__(self, capacity, decay_time, error=0.005, error_tightning_ratio = 0.5, growth_factor=None, max_load_factor=0.6, num_buffer_blooms = 1, dtype="B", ioloop=None):
+    def __init__(self, capacity, decay_time, error=0.005, error_tightning_ratio = 0.5, growth_factor=None, max_load_factor=0.6, num_buffer_blooms = 1, ioloop=None):
         assert 0 < max_load_factor <= math.log(2), "max_load_factor must be 0<max_load_factor<=ln(2)"
         assert growth_factor is None or 0 < growth_factor, "growth_factor must be None or >0"
         assert 0 <= num_buffer_blooms, "num_buffer_blooms must be >=0"
@@ -22,7 +22,6 @@ class ScalingTimingBloomFilter(object):
 
         self.capacity = capacity
         self.decay_time = decay_time
-        self.dtype = dtype
         self.max_id = 0
         self.num_buffer_blooms = num_buffer_blooms
 
@@ -59,7 +58,6 @@ class ScalingTimingBloomFilter(object):
                 capacity = capacity, 
                 decay_time = self.decay_time, 
                 error = error, 
-                dtype = self.dtype,
             ),
         })
         self.max_id += 1
@@ -112,7 +110,7 @@ class ScalingTimingBloomFilter(object):
         return self
 
     def tofile(self, f):
-        header = struct.pack("QdddddQcQ", self.capacity, self.decay_time, self.error, self.error_tightning_ratio, self.growth_factor or -1, self.max_load_factor, self.num_buffer_blooms, self.dtype, len(self.blooms))
+        header = struct.pack("QdddddQQ", self.capacity, self.decay_time, self.error, self.error_tightning_ratio, self.growth_factor or -1, self.max_load_factor, self.num_buffer_blooms, len(self.blooms))
         f.write(header + "\n")
         for bloom in self.blooms:
             bheader = struct.pack("Qdd", bloom["id"], bloom["error"], bloom["capacity"])
@@ -126,7 +124,7 @@ class ScalingTimingBloomFilter(object):
         """
         self = cls.__new__(cls)
         header = f.readline()[:-1]
-        self.capacity, self.decay_time, self.error, self.error_tightning_ratio, self.growth_factor, self.max_load_factor, self.num_buffer_blooms, self.dtype, N = struct.unpack("QdddddQcQ", header)
+        self.capacity, self.decay_time, self.error, self.error_tightning_ratio, self.growth_factor, self.max_load_factor, self.num_buffer_blooms, N = struct.unpack("QdddddQQ", header)
 
         if self.growth_factor == -1:
             self.growth_factor = None

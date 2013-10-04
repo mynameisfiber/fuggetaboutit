@@ -6,6 +6,11 @@ import tornado.testing
 import struct
 import time
 
+try:
+    import _optimizations
+except ImportError:
+    _optimizations = None
+
 
 class TimingBloomFilter(CountingBloomFilter):
     def __init__(self, *args, **kwargs):
@@ -23,9 +28,10 @@ class TimingBloomFilter(CountingBloomFilter):
         self.set_ioloop(ioloop)
 
     def _initialize(self):
-        self.ring_size = (1 << (struct.calcsize(self.dtype) * 8)) - 1
+        self.ring_size = (1 << 8) - 1
         self.dN = self.ring_size / 2
         self.seconds_per_tick = self.decay_time / float(self.dN)
+        self._optimize = _optimizations is not None
 
     def set_ioloop(self, ioloop=None):
         self._ioloop = ioloop or tornado.ioloop.IOLoop.instance()
@@ -52,34 +58,43 @@ class TimingBloomFilter(CountingBloomFilter):
         if tick_min < tick_max:
             return lambda x : x and tick_min < x <= tick_max
         else:
-            return lambda x : 0 < x <= tick_max or tick_min < x < self.ring_size
+            return lambda x : x != 0 and not tick_max < x <= tick_min
 
     def add(self, key):
-        assert isinstance(key, str)
         tick = self._tick()
-        for index in self._indexes(key):
-            self.num_non_zero += (self.data[index] == 0)
-            self.data[index] = tick
+        if self._optimize and self.data.flags['C_CONTIGUOUS']:
+            self.num_non_zero += _optimizations.timing_bloom_add(self.data, self._indexes(key), tick)
+        else:
+            for index in self._indexes(key):
+                self.num_non_zero += (self.data[index] == 0)
+                self.data[index] = tick
         return self
 
     def contains(self, key):
         """
         Check if the current bloom contains the key `key`
         """
-        assert isinstance(key, str)
-        test_interval = self._test_interval()
-        return all(test_interval(self.data[index]) for index in self._indexes(key))
+        if self._optimize and self.data.flags['C_CONTIGUOUS']:
+            tick_min, tick_max = self._tick_range()
+            return _optimizations.timing_bloom_contains(self.data, self._indexes(key), tick_min, tick_max)
+        else:
+            test_interval = self._test_interval()
+            return all(test_interval(self.data[index]) for index in self._indexes(key))
 
     def decay(self):
-        test_interval = self._test_interval()
-        self.num_non_zero = 0
-        for i in xrange(self.num_bytes):
-            value = self.data[i]
-            if value != 0:
-                if not test_interval(value):
-                    self.data[i] = 0
-                else:
-                    self.num_non_zero += 1
+        if self._optimize and self.data.flags['C_CONTIGUOUS']:
+            tick_min, tick_max = self._tick_range()
+            self.num_non_zero = _optimizations.timing_bloom_decay(self.data, tick_min, tick_max)
+        else:
+            test_interval = self._test_interval()
+            self.num_non_zero = 0
+            for i in xrange(self.num_bytes):
+                value = self.data[i]
+                if value != 0:
+                    if not test_interval(value):
+                        self.data[i] = 0
+                    else:
+                        self.num_non_zero += 1
 
     def start(self):
         assert not self._callbacktimer._running, "Decay timer already running"
@@ -116,12 +131,15 @@ class TimingBloomFilter(CountingBloomFilter):
 if __name__ == "__main__":
     from utils import TimingBlock
     N = int(1e5)
+    T = 10
 
-    tbf = TimingBloomFilter(2*N, decay_time=15)
+    print "Initializing"
+    tbf = TimingBloomFilter(2*N, decay_time=T)
 
     with TimingBlock("Adding", N):
         for i in xrange(N):
             tbf.add("idx_%d" % i)
+    start = time.time()
 
     with TimingBlock("Contains(+)", N):
         for i in xrange(N):
@@ -133,6 +151,16 @@ if __name__ == "__main__":
             c += tbf.contains("idx_%d" % i)
         assert c / float(N) <= tbf.error, "Too many false positives"
 
-    with TimingBlock("Decaying", 50):
-        for i in xrange(50):
-            tbf.decay()
+    print "Waiting for decay"
+    tbf.decay()
+    time.sleep(T - time.time() + start + 1)
+    with TimingBlock("Decaying in C", 1):
+        tbf.decay()
+
+    print "Number of non-zero entries: ", tbf.num_non_zero
+
+    with TimingBlock("Contains(expired)", N):
+        c = 0
+        for i in xrange(N):
+            c += tbf.contains("idx_%d" % i)
+        assert c / float(N) <= tbf.error, "Too many false positives"
