@@ -76,7 +76,7 @@ class TimingBloomFilter(CountingBloomFilter):
         """
         if self._optimize and self.data.flags['C_CONTIGUOUS']:
             tick_min, tick_max = self._tick_range()
-            return _optimizations.timing_bloom_contains(self.data, self._indexes(key), tick_min, tick_max)
+            return bool(_optimizations.timing_bloom_contains(self.data, self._indexes(key), tick_min, tick_max))
         else:
             test_interval = self._test_interval()
             return all(test_interval(self.data[index]) for index in self._indexes(key))
