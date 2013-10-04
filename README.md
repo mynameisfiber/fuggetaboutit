@@ -75,3 +75,7 @@ Air, I get:
 * Testing 100000 positive values: 2.268268s (44086.503770 / s)
 * Testing 100000 negative values: 0.982043s (101828.532112 / s)
 * Decaying: 0.966145s
+
+### todo
+
+**MOAR SPEED**
