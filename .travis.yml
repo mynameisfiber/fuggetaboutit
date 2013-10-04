@@ -6,4 +6,4 @@ install:
     - "python setup.py install"
 script: 
     - cd fuggetaboutit
-    - python -m tornado.testing fuggetaboutit.tests
+    - python -m tornado.testing fuggetaboutit.test
