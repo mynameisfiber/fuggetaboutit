@@ -70,3 +70,5 @@ class TestTimingBloomFilter(tornado.testing.AsyncTestCase):
                     err += 1
             tot_err = err / float(N)
             assert tot_err <= tbf.error, "Error is too high: %f > %f" % (tot_err, tbf.error)
+
+        assert tbf.num_non_zero == 0, "All entries in the bloom should be zero: %d non-zero entries" % tbf.num_non_zero

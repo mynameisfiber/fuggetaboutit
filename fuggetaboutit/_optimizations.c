@@ -111,10 +111,12 @@ PyObject* py_timing_bloom_decay(PyObject* self, PyObject* args) {
     #pragma omp parallel for if(N > 1e6) reduction(+:num_non_zero)
     for(int i=0; i<N; i++) {
         value = (uint8_t)values[i];
-        if (value != 0 && ((!ring_interval && !(value > tick_min && value <= tick_max)) || (ring_interval && !(value > tick_min || value <= tick_max)))) {
-            values[i] = 0;
-        } else {
-            num_non_zero += 1;
+        if (value != 0) {
+            if ((!ring_interval && !(value > tick_min && value <= tick_max)) || (ring_interval && !(value > tick_min || value <= tick_max))) {
+                values[i] = 0;
+            } else {
+                num_non_zero += 1;
+            }
         }
     }
     PyObject *ret = Py_BuildValue("i", num_non_zero);
