@@ -21,11 +21,11 @@ class TestTimingBloomFilter(tornado.testing.AsyncTestCase):
     def test_holistic(self):
         n = int(2e4)
         N = int(1e4)
-        T = 5
+        T = 3
         print "TimingBloom with capacity %e and expiration time %ds" % (n, T)
 
         with TimingBlock("Initialization"):
-            tbf = TimingBloomFilter(n, decay_time=T, dtype="B", ioloop=self.io_loop)
+            tbf = TimingBloomFilter(n, decay_time=T, ioloop=self.io_loop)
 
         orig_decay = tbf.decay
         def new_decay(*args, **kwargs):
@@ -37,7 +37,7 @@ class TestTimingBloomFilter(tornado.testing.AsyncTestCase):
         tbf.start()
 
         print "num_hashes = %d, num_bytes = %d" % (tbf.num_hashes, tbf.num_bytes)
-        print "sizeof(TimingBloom) = %d bytes" % (struct.calcsize(tbf.dtype) * tbf.num_bytes)
+        print "sizeof(TimingBloom) = %d bytes" % (tbf.num_bytes)
 
         with TimingBlock("Adding %d values" % N, N):
             for i in xrange(N):
@@ -57,7 +57,7 @@ class TestTimingBloomFilter(tornado.testing.AsyncTestCase):
             assert tot_err <= tbf.error, "Error is too high: %f > %f" % (tot_err, tbf.error)
 
         try:
-            t = T - (time.time() - last_insert)
+            t = T - (time.time() - last_insert) + 1
             if t > 0:
                 self.wait(timeout = t)
         except:

@@ -40,6 +40,7 @@ setup(
     include_dirs = numpy.distutils.misc_util.get_numpy_include_dirs(),
 
     install_requires = [
+        "numpy",
         "mmh3",
         "tornado>=3",
     ],
