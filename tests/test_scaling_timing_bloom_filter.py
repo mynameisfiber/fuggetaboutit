@@ -73,4 +73,4 @@ class TestScalingTimingBloomFilter(tornado.testing.AsyncTestCase):
             tot_err = err / float(N)
             assert tot_err <= stbf.error, "Error is too high: %f > %f" % (tot_err, stbf.error)
 
-        assert len(stbf.blooms) == 1, "Decay should have pruned all but one bloom filters"
+        assert len(stbf.blooms) == 1, "Decay should have pruned all but one bloom filters: %d blooms left" % len(stbf.blooms)
