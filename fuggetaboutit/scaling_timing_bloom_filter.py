@@ -110,7 +110,7 @@ class ScalingTimingBloomFilter(object):
         return self
 
     def tofile(self, f):
-        header = struct.pack("QdddddQQ", self.capacity, self.decay_time, self.error, self.error_tightning_ratio, self.growth_factor or -1, self.max_load_factor, self.num_buffer_blooms, len(self.blooms))
+        header = struct.pack("QdddddQQdQ", self.capacity, self.decay_time, self.error, self.error_tightning_ratio, self.growth_factor or -1, self.max_load_factor, self.num_buffer_blooms, len(self.blooms), self.error_initial, self.max_load_factor_raw)
         f.write(header + "\n")
         for bloom in self.blooms:
             bheader = struct.pack("Qdd", bloom["id"], bloom["error"], bloom["capacity"])
@@ -124,7 +124,7 @@ class ScalingTimingBloomFilter(object):
         """
         self = cls.__new__(cls)
         header = f.readline()[:-1]
-        self.capacity, self.decay_time, self.error, self.error_tightning_ratio, self.growth_factor, self.max_load_factor, self.num_buffer_blooms, N = struct.unpack("QdddddQQ", header)
+        self.capacity, self.decay_time, self.error, self.error_tightning_ratio, self.growth_factor, self.max_load_factor, self.num_buffer_blooms, N, self.error_initial, self.max_load_factor_raw = struct.unpack("QdddddQQdQ", header)
 
         if self.growth_factor == -1:
             self.growth_factor = None
