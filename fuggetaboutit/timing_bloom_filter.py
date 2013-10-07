@@ -63,7 +63,7 @@ class TimingBloomFilter(CountingBloomFilter):
     def add(self, key, timestamp=None):
         tick = self._tick(timestamp)
         if timestamp:
-            if not self._test_interval()(timestamp):
+            if not self._test_interval()(tick):
                 return self
         if self._optimize and self.data.flags['C_CONTIGUOUS']:
             self.num_non_zero += _optimizations.timing_bloom_add(self.data, self._indexes(key), tick)
