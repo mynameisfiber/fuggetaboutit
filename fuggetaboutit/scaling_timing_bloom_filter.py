@@ -65,7 +65,7 @@ class ScalingTimingBloomFilter(object):
     def expected_error(self):
         return 1 - reduce(operator.mul, (1 - bloom["error"] for bloom in self.blooms))
 
-    def add(self, key):
+    def add(self, key, timestamp=None):
         cur_bloom = None
         for bloom in self.blooms:
             if bloom["bloom"].num_non_zero < self.max_load_factor_raw:
@@ -74,7 +74,7 @@ class ScalingTimingBloomFilter(object):
         if cur_bloom is None:
             self._add_new_bloom()
             cur_bloom = self.blooms[-1]
-        cur_bloom["bloom"].add(key)
+        cur_bloom["bloom"].add(key, timestamp)
         return self
 
     def contains(self, key):
