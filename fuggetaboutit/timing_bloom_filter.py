@@ -46,7 +46,7 @@ class TimingBloomFilter(CountingBloomFilter):
         self._callbacktimer = tornado.ioloop.PeriodicCallback(self.decay, self.time_per_decay, self._ioloop)
 
     def _tick(self, timestamp=None):
-        return int((timestamp or time.time() // self.seconds_per_tick) % self.ring_size) + 1
+        return int(((timestamp or time.time()) // self.seconds_per_tick) % self.ring_size) + 1
 
     def _tick_range(self):
         tick_max = self._tick()
