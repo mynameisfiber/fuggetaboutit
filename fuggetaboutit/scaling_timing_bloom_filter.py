@@ -37,7 +37,10 @@ class ScalingTimingBloomFilter(object):
         self._setup_decay()
 
     def _setup_decay(self):
-        self.time_per_decay = self.blooms[0]["bloom"].time_per_decay
+        self.ring_size = (1 << 8) - 1
+        self.dN = self.ring_size / 2
+        self.seconds_per_tick = self.decay_time / float(self.dN)
+        self.time_per_decay = self.seconds_per_tick * 1000.0 / 2.0
         try:
             self.stop()
         except:
