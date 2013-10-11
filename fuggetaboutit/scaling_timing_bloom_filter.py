@@ -133,6 +133,7 @@ class ScalingTimingBloomFilter(object):
             self.growth_factor = None
 
         self.blooms = [ ]
+        self.max_id = 0
         for i in range(N):
             bheader = f.readline()[:-1]
             _id, error, capacity = struct.unpack("Qdd", bheader)
@@ -143,6 +144,7 @@ class ScalingTimingBloomFilter(object):
                 "capacity" : capacity,
                 "bloom" : bloom,
             })
+            self.max_id = max(self.max_id, _id)
 
         self._ioloop = None
         self._setup_decay()    
