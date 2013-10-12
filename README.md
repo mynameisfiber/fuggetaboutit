@@ -63,55 +63,22 @@ Did we mention that this thing is fast?  It's all built on python's native
 Air, I get:
 
 ```
-$ ipython
-Python 2.7.1 (r271:86832, Jul 31 2011, 19:30:53)
-Type "copyright", "credits" or "license" for more information.
-
-IPython 0.14.dev -- An enhanced Interactive Python.
-In [1]: import random, string
-
-In [2]: from fuggetaboutit import TimingBloomFilter
-
-In [3]: from fuggetaboutit import ScalingTimingBloomFilter
-
-In [4]: tbf = TimingBloomFilter(1e6, decay_time=24*60*60)
-
-In [5]: %timeit "".join(random.sample(string.ascii_lowercase, 5))
-10000 loops, best of 3: 22.7 us per loop
-
-In [6]: %timeit tbf.add("".join(random.sample(string.ascii_lowercase, 5)))
-10000 loops, best of 3: 60 us per loop
-
-In [7]: %timeit tbf.contains("".join(random.sample(string.ascii_lowercase, 5)))
-10000 loops, best of 3: 43.3 us per loop
-
-In [8]: %timeit tbf.decay()
-10 loops, best of 3: 153 ms per loop
-
-In [9]: stbf = ScalingTimingBloomFilter(1e6, decay_time=24*60*60)
-
-In [10]: %timeit stbf.add("".join(random.sample(string.ascii_lowercase, 5)))
-10000 loops, best of 3: 62.5 us per loop
-
-In [11]: %timeit stbf.contains("".join(random.sample(string.ascii_lowercase, 5)))
-10000 loops, best of 3: 54.3 us per loop
-
-In [12]: %timeit stbf.decay()
-10 loops, best of 3: 143 ms per loop
-
-#After loading the stbf to more contain more entries than it's initial capacity
-In [13]: for i in xrange(int(2e6)): stbf.add("".join(random.sample(string.ascii_lowercase, 10)))
-
-In [14]: %timeit stbf.add("".join(random.sample(string.ascii_lowercase, 5)))
-10000 loops, best of 3: 65.3 us per loop
-
-In [15]: %timeit stbf.contains("".join(random.sample(string.ascii_lowercase, 5)))
-10000 loops, best of 3: 67.6 us per loop
-
-In [16]: %timeit stbf.decay()
-1 loops, best of 3: 597 ms per loop
+$ python -m fuggetaboutit.benchmark
+Benchmarking blooms with size 100000
+(baseline timing of keygeneration: 9.01e-06s, already subtracted from results)
+.-------------------------------------------------------------------------------.
+|                                    | bench_add | bench_contains | bench_decay |
+|===============================================================================|
+|                Timing Bloom Filter | 1.18e-05s | 8.7829804e-06s | 7.6768e-03s |
+|        Scaling Timing Bloom Filter | 1.29e-05s | 9.9768615e-06s | 2.5842e-03s |
+| Scaled Scaling Timing Bloom Filter | 1.48e-05s | 2.6480553e-05s | 2.3088e-02s |
+'-------------------------------------------------------------------------------'
 ```
 
+For these benchmarks, the first and second entries are empty
+`TimingBloomFilter` and `ScalingTimingBloomFilter` objects with capacity
+100000.  The same is the case for the last entry, however we also added 150000
+entries before the test so that the bloom is in a scaled state.
 
 ### todo
 
