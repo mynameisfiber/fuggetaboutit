@@ -1,0 +1,16 @@
+setup.py
+fuggetaboutit/__init__.py
+fuggetaboutit/_optimizations.c
+fuggetaboutit/counting_bloom_filter.py
+fuggetaboutit/scaling_timing_bloom_filter.py
+fuggetaboutit/test.py
+fuggetaboutit/timing_bloom_filter.py
+fuggetaboutit/utils.py
+fuggetaboutit.egg-info/PKG-INFO
+fuggetaboutit.egg-info/SOURCES.txt
+fuggetaboutit.egg-info/dependency_links.txt
+fuggetaboutit.egg-info/requires.txt
+fuggetaboutit.egg-info/top_level.txt
+fuggetaboutit/tests/__init__.py
+fuggetaboutit/tests/test_scaling_timing_bloom_filter.py
+fuggetaboutit/tests/test_timing_bloom_filter.py
