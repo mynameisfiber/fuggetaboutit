@@ -7,7 +7,47 @@ import struct
 import operator
 
 class ScalingTimingBloomFilter(object):
-    def __init__(self, capacity, decay_time, error=0.005, error_tightning_ratio = 0.5, growth_factor=None, max_load_factor=0.6, num_buffer_blooms = 1, ioloop=None):
+    """
+    A bloom filter that will decay old values and scale up capacity as
+    needed.  This bloom filter will automatically decay values such that an
+    item added will be removed from the bloom after ``decay_time`` seconds.
+    The underlying bloom has initial capacity ``capacity`` and maximum error
+    ``error``.  In addition, the bloom will automatically scale using
+    Almeida's method from "Scalable Bloom Filters" using an error tightning
+    ratio and growth factor given by ``error_tightning_ratio`` and
+    ``growth_factor``.  A bloom filter will be scaled up when
+    ``max_load_factor`` percent of the underlying bits of the bloom filter
+    are in use.  This value can be a maximum on ln(2) since this would
+    represent ``capacity`` number of elements being inserted.
+    
+    :param capacity: initial capacity
+    :type capacity: integer
+    
+    :param decay_time: time, in seconds, for an item to decay
+    :type decay_time: integer
+    
+    :param error: maximum error rate
+    :type error: float
+    
+    :param error_tightning_ratio: reduction factor for the error rate of scaled blooms
+    :type error_tightning_ratio: float
+    
+    :param growth_factor: increasing factor for the capacity of scaled blooms
+    :type growth_factor: float or None
+    
+    :param max_load_factor: maximum load factor of a bloom to be considered full
+    :type max_load_factor: 0 < float < ln(2)
+    
+    :param num_buffer_blooms: number of spare blooms to keep to allow for frequent scaling
+    :type num_buffer_blooms: integer
+    
+    :param ioloop: an instance of an IOLoop to attatch the periodic decay operation to
+    :type ioloop: tornado.ioloop.IOLoop or None
+    """
+    def __init__(self, capacity, decay_time, error=0.005, 
+            error_tightning_ratio = 0.5, growth_factor=None, 
+            max_load_factor=0.6, num_buffer_blooms = 1, 
+            ioloop=None):
         assert 0 < max_load_factor <= math.log(2), "max_load_factor must be 0<max_load_factor<=ln(2)"
         assert growth_factor is None or 0 < growth_factor, "growth_factor must be None or >0"
         assert 0 <= num_buffer_blooms, "num_buffer_blooms must be >=0"
@@ -33,6 +73,13 @@ class ScalingTimingBloomFilter(object):
 
 
     def set_ioloop(self, ioloop=None):
+        """
+        Set a new IOLoop to attatch the decay operation to.  ``stop()`` should be
+        called before changing the ioloop.
+
+        :param ioloop: an instance of an IOLoop to attatch the periodic decay operation to
+        :type ioloop: tornado.ioloop.IOLoop or None
+        """
         self._ioloop = ioloop or tornado.ioloop.IOLoop.instance()
         self._setup_decay()
 
@@ -66,9 +113,26 @@ class ScalingTimingBloomFilter(object):
         self.max_id += 1
 
     def expected_error(self):
+        """
+        Return the current expected error rate from the blooms.  This should
+        always be smaller than the maximum error given in the constructor.
+
+        :rtype: float
+        """
         return 1 - reduce(operator.mul, (1 - bloom["error"] for bloom in self.blooms))
 
     def add(self, key, timestamp=None):
+        """
+        Add key to the bloom filter and scale if necissary.  The key will be
+        inserted at the current timestamp if parameter ``timestamp`` is not
+        provided.
+
+        :param key: key to be added
+        :type key: str
+
+        :param timestamp: timestamp of the item
+        :type timestamp: int
+        """
         cur_bloom = None
         for bloom in self.blooms:
             if bloom["bloom"].num_non_zero < self.max_load_factor_raw:
@@ -81,12 +145,24 @@ class ScalingTimingBloomFilter(object):
         return self
 
     def contains(self, key):
+        """
+        Check if key is contained in the bloom filter
+
+        :param key: key to be added
+        :type key: str
+
+        :rtype: bool
+        """
         for bloom in self.blooms:
             if key in bloom["bloom"]:
                 return True
         return False
 
     def decay(self):
+        """
+        Decay the bloom filter and remove items that are older than
+        ``decay_time``.  This will also remove empty bloom filters.
+        """
         num_empty_blooms = 0
         for bloom in self.blooms:
             bloom["bloom"].decay()
@@ -103,16 +179,29 @@ class ScalingTimingBloomFilter(object):
                     break
 
     def start(self):
+        """
+        Start a periodic callback on the IOLoop to decay the bloom at every
+        half ``decay_time``.
+        """
         assert not self._callbacktimer._running, "Decay timer already running"
         self._callbacktimer.start()
         return self
 
     def stop(self):
+        """
+        Stop the periodic decay operation
+        """
         assert self._callbacktimer._running, "Decay timer not running"
         self._callbacktimer.stop()
         return self
 
     def tofile(self, f):
+        """
+        Saves the current bloom to the file object ``f``.
+
+        :param f: File to save the bloom filter to
+        :type f: file
+        """
         header = struct.pack("QdddddQQdQ", self.capacity, self.decay_time, self.error, self.error_tightning_ratio, self.growth_factor or -1, self.max_load_factor, self.num_buffer_blooms, len(self.blooms), self.error_initial, self.max_load_factor_raw)
         f.write(header + "\n")
         for bloom in self.blooms:
@@ -123,7 +212,12 @@ class ScalingTimingBloomFilter(object):
     @classmethod
     def fromfile(cls, f):
         """
-        Reads the bloom from the given fileobject and returns the python object
+        Reads the bloom from the given file ``f``.
+
+        :param f: File to save the bloom filter to
+        :type f: file
+
+        :rtype: ScalingTimingBloomFilter
         """
         self = cls.__new__(cls)
         header = f.readline()[:-1]

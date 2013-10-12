@@ -9,6 +9,7 @@ import time
 try:
     import _optimizations
 except ImportError:
+    print "Could not load optimizations"
     _optimizations = None
 
 

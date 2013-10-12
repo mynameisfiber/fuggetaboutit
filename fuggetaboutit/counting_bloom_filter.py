@@ -18,8 +18,8 @@ class CountingBloomFilter(object):
         """
         Generates the indicies corresponding to the given key
         """
+        h1, h2 = mmh3.hash64(key)
         for i in xrange(self.num_hashes):
-            h1, h2 = mmh3.hash64(key)
             yield (h1 + i * h2) % self.num_bytes
 
     def add(self, key, N=1):
