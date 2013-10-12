@@ -1,0 +1,225 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>Examples &mdash; fuggetaboutit 0.1.6 documentation</title>
+    
+    <link rel="stylesheet" href="_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '0.1.6',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <script type="text/javascript" src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="top" title="fuggetaboutit 0.1.6 documentation" href="index.html" />
+    <link rel="prev" title="Scaling Timing Bloom Filter" href="scalingtimingbloomfilter.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="scalingtimingbloomfilter.html" title="Scaling Timing Bloom Filter"
+             accesskey="P">previous</a> |</li>
+        <li><a href="index.html">fuggetaboutit 0.1.6 documentation</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <div class="section" id="examples">
+<h1>Examples<a class="headerlink" href="#examples" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="basic-usage">
+<h2>Basic Usage<a class="headerlink" href="#basic-usage" title="Permalink to this headline">¶</a></h2>
+<p>Let&#8217;s say we have the following data source:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">import</span> <span class="nn">random</span>
+<span class="kn">import</span> <span class="nn">string</span>
+
+<span class="k">def</span> <span class="nf">generate_data</span><span class="p">(</span><span class="n">N</span><span class="o">=</span><span class="mi">5</span><span class="p">):</span>
+    <span class="k">while</span> <span class="bp">True</span><span class="p">:</span>
+        <span class="k">yield</span> <span class="s">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">random</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="n">string</span><span class="o">.</span><span class="n">ascii_lowercase</span><span class="p">,</span> <span class="n">N</span><span class="p">))</span>
+</pre></div>
+</div>
+<p>and we would like to know, &#8220;<strong>Have we seen this piece of data in the last 10
+seconds?</strong>&#8221; we could do the following:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">from</span> <span class="nn">fuggetaboutit</span> <span class="kn">import</span> <span class="n">ScalingTimingBloomFilter</span>
+<span class="kn">import</span> <span class="nn">time</span>
+
+<span class="n">decay_time</span> <span class="o">=</span> <span class="mi">10</span>
+<span class="n">cache</span> <span class="o">=</span> <span class="n">ScalingTimingBloomFilter</span><span class="p">(</span><span class="mi">20000</span><span class="p">,</span> <span class="n">decay_time</span><span class="o">=</span><span class="n">decay_time</span><span class="p">)</span>
+<span class="k">for</span> <span class="n">data</span> <span class="ow">in</span> <span class="n">generate_data</span><span class="p">():</span>
+    <span class="k">if</span> <span class="n">data</span> <span class="ow">in</span> <span class="n">cache</span><span class="p">:</span>
+        <span class="k">print</span> <span class="s">&quot;I have seen this before: &quot;</span><span class="p">,</span> <span class="n">data</span>
+    <span class="n">cache</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+    <span class="n">cache</span><span class="o">.</span><span class="n">decay</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>We picked <tt class="docutils literal"><span class="pre">20000</span></tt> as an initial guess for how many unique items would be
+stored in the bloom at any given time.  Since this bloom filter scales, this
+initial guess can be wrong and the bloom will scale as necissary (at a
+performance penalty!).</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">Decaying is not necissary if the capacity is very close to the number of
+unique elements in the set in one decay_time.  This is because new inserts
+will overwite old data with new timestamps and the old data will simply
+fade away.  However, it is always best practive to do an explicit decay to
+make sure we satisfy the guarentee of decaying data and the given erro rate
+even in the face of edge cases.</p>
+</div>
+<p>One problem with this code is that we are decaying the entire bloom for every
+input we get.  This is a waste of computation since decaying is only necissary
+at every half decay time.  In order to deal with this, we can keep a timer and
+only decay when necissary:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">from</span> <span class="nn">fuggetaboutit</span> <span class="kn">import</span> <span class="n">ScalingTimingBloomFilter</span>
+<span class="kn">import</span> <span class="nn">time</span>
+
+<span class="n">decay_time</span> <span class="o">=</span> <span class="mi">10</span>
+<span class="n">cache</span> <span class="o">=</span> <span class="n">ScalingTimingBloomFilter</span><span class="p">(</span><span class="mi">20000</span><span class="p">,</span> <span class="n">decay_time</span><span class="o">=</span><span class="n">decay_time</span><span class="p">)</span>
+<span class="n">last_decay</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+<span class="k">for</span> <span class="n">data</span> <span class="ow">in</span> <span class="n">generate_data</span><span class="p">():</span>
+    <span class="k">if</span> <span class="n">data</span> <span class="ow">in</span> <span class="n">cache</span><span class="p">:</span>
+        <span class="k">print</span> <span class="s">&quot;I have seen this before: &quot;</span><span class="p">,</span> <span class="n">data</span>
+    <span class="n">cache</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span> <span class="o">-</span> <span class="n">last_decay</span> <span class="o">&gt;=</span> <span class="n">decay_time</span><span class="p">:</span>
+        <span class="n">cache</span><span class="o">.</span><span class="n">decay</span><span class="p">()</span>
+        <span class="n">last_decay</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>Unfortunaly, there is quite a lot of code dealing with when to run a <tt class="docutils literal"><span class="pre">decay</span></tt>.
+For this reason, the <tt class="docutils literal"><span class="pre">ScalingTimingBloomFilter</span></tt> supports tornado&#8217;s IOLoop.</p>
+</div>
+<div class="section" id="using-the-ioloop">
+<h2>Using the IOLoop<a class="headerlink" href="#using-the-ioloop" title="Permalink to this headline">¶</a></h2>
+<p>In order to use the IOLoop, we must re-make the code to be event based:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">import</span> <span class="nn">tornado.ioloop</span>
+<span class="kn">from</span> <span class="nn">fuggetaboutit</span> <span class="kn">import</span> <span class="n">ScalingTimingBloomFilter</span>
+
+<span class="n">data</span> <span class="o">=</span> <span class="n">generate_data</span><span class="p">()</span>
+<span class="n">cache</span> <span class="o">=</span> <span class="n">ScalingTimingBloomFilter</span><span class="p">(</span><span class="mi">20000</span><span class="p">,</span> <span class="n">decay_time</span><span class="o">=</span><span class="n">decay_time</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">handle_data</span><span class="p">(</span><span class="n">d</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">cache</span><span class="p">:</span>
+        <span class="k">print</span> <span class="s">&quot;I have seen this before: &quot;</span><span class="p">,</span> <span class="n">d</span>
+    <span class="n">cache</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">d</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">generate_event</span><span class="p">():</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">xrange</span><span class="p">(</span><span class="mi">500</span><span class="p">):</span>
+        <span class="n">handle_data</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">next</span><span class="p">())</span>
+
+<span class="n">cache</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+<span class="n">tornado</span><span class="o">.</span><span class="n">ioloop</span><span class="o">.</span><span class="n">PeriodicCallback</span><span class="p">(</span><span class="n">generate_event</span><span class="p">,</span> <span class="mi">500</span><span class="p">)</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>This will generate 500 data event every 0.5 seconds.  Similarly, the
+<tt class="docutils literal"><span class="pre">.start()</span></tt> call on the <tt class="docutils literal"><span class="pre">ScalingTimingBloomFilter</span></tt> registers decay events
+with the IOLoop.  This produces the final code:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">from</span> <span class="nn">fuggetaboutit</span> <span class="kn">import</span> <span class="n">ScalingTimingBloomFilter</span>
+<span class="kn">import</span> <span class="nn">tornado.ioloop</span>
+<span class="kn">import</span> <span class="nn">random</span>
+<span class="kn">import</span> <span class="nn">string</span>
+
+<span class="k">def</span> <span class="nf">generate_data</span><span class="p">(</span><span class="n">N</span><span class="o">=</span><span class="mi">5</span><span class="p">):</span>
+    <span class="k">while</span> <span class="bp">True</span><span class="p">:</span>
+        <span class="k">yield</span> <span class="s">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">random</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="n">string</span><span class="o">.</span><span class="n">ascii_lowercase</span><span class="p">,</span> <span class="n">N</span><span class="p">))</span>
+
+<span class="n">data</span> <span class="o">=</span> <span class="n">generate_data</span><span class="p">()</span>
+<span class="n">cache</span> <span class="o">=</span> <span class="n">ScalingTimingBloomFilter</span><span class="p">(</span><span class="mi">20000</span><span class="p">,</span> <span class="n">decay_time</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">handle_data</span><span class="p">(</span><span class="n">d</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">cache</span><span class="p">:</span>
+        <span class="k">print</span> <span class="s">&quot;I have seen this before: &quot;</span><span class="p">,</span> <span class="n">d</span>
+    <span class="n">cache</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">d</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">generate_event</span><span class="p">():</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">xrange</span><span class="p">(</span><span class="mi">500</span><span class="p">):</span>
+        <span class="n">handle_data</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">next</span><span class="p">())</span>
+
+<span class="k">if</span> <span class="n">__name__</span> <span class="o">==</span> <span class="s">&quot;__main__&quot;</span><span class="p">:</span>
+    <span class="n">tornado</span><span class="o">.</span><span class="n">ioloop</span><span class="o">.</span><span class="n">PeriodicCallback</span><span class="p">(</span><span class="n">generate_event</span><span class="p">,</span> <span class="mi">100</span><span class="p">)</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+    <span class="n">cache</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+    <span class="k">print</span> <span class="s">&quot;Starting&quot;</span>
+    <span class="n">tornado</span><span class="o">.</span><span class="n">ioloop</span><span class="o">.</span><span class="n">IOLoop</span><span class="p">()</span><span class="o">.</span><span class="n">instance</span><span class="p">()</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>With this type of setup, we can asynchronously add data and decay old events.</p>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">Examples</a><ul>
+<li><a class="reference internal" href="#basic-usage">Basic Usage</a></li>
+<li><a class="reference internal" href="#using-the-ioloop">Using the IOLoop</a></li>
+</ul>
+</li>
+</ul>
+
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="scalingtimingbloomfilter.html"
+                        title="previous chapter">Scaling Timing Bloom Filter</a></p>
+  <h3>This Page</h3>
+  <ul class="this-page-menu">
+    <li><a href="_sources/examples.txt"
+           rel="nofollow">Show Source</a></li>
+  </ul>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="scalingtimingbloomfilter.html" title="Scaling Timing Bloom Filter"
+             >previous</a> |</li>
+        <li><a href="index.html">fuggetaboutit 0.1.6 documentation</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2013, Micha Gorelick.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.2b1.
+    </div>
+  </body>
+</html>

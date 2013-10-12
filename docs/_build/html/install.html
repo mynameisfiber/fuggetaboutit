@@ -1,0 +1,147 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>Installing &mdash; fuggetaboutit 0.1.6 documentation</title>
+    
+    <link rel="stylesheet" href="_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '0.1.6',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <script type="text/javascript" src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="top" title="fuggetaboutit 0.1.6 documentation" href="index.html" />
+    <link rel="next" title="Scaling Timing Bloom Filter" href="scalingtimingbloomfilter.html" />
+    <link rel="prev" title="fuggetaboutit" href="index.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="scalingtimingbloomfilter.html" title="Scaling Timing Bloom Filter"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="index.html" title="fuggetaboutit"
+             accesskey="P">previous</a> |</li>
+        <li><a href="index.html">fuggetaboutit 0.1.6 documentation</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <div class="section" id="installing">
+<h1>Installing<a class="headerlink" href="#installing" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="pypi">
+<h2>pypi<a class="headerlink" href="#pypi" title="Permalink to this headline">¶</a></h2>
+<p>To install the latest stable version with pypi, simply run:</p>
+<div class="highlight-python"><pre>$ pip install fuggetaboutit</pre>
+</div>
+<p>This will automatically install <tt class="docutils literal"><span class="pre">fuggetaboutit</span></tt> and all it&#8217;s dependencies</p>
+</div>
+<div class="section" id="source">
+<h2>source<a class="headerlink" href="#source" title="Permalink to this headline">¶</a></h2>
+<p>First, fetch the source:</p>
+<div class="highlight-python"><pre>$ git clone git@github.com:mynameisfiber/fuggetaboutit.git
+$ cd fuggetaboutit</pre>
+</div>
+<p>Next, install the dependencies:</p>
+<div class="highlight-python"><pre>$ [sudo] pip install -r requirements.txt</pre>
+</div>
+<p>And finally, install <tt class="docutils literal"><span class="pre">fuggetaboutit</span></tt>:</p>
+<div class="highlight-python"><pre>$ [sudo] python setup.py install</pre>
+</div>
+</div>
+<div class="section" id="testing">
+<h2>testing<a class="headerlink" href="#testing" title="Permalink to this headline">¶</a></h2>
+<p>Once installed, tests can be run with the following command:</p>
+<div class="highlight-python"><pre>$ python -m tornado.testing fuggetaboutit.test</pre>
+</div>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">Installing</a><ul>
+<li><a class="reference internal" href="#pypi">pypi</a></li>
+<li><a class="reference internal" href="#source">source</a></li>
+<li><a class="reference internal" href="#testing">testing</a></li>
+</ul>
+</li>
+</ul>
+
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="index.html"
+                        title="previous chapter">fuggetaboutit</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="scalingtimingbloomfilter.html"
+                        title="next chapter">Scaling Timing Bloom Filter</a></p>
+  <h3>This Page</h3>
+  <ul class="this-page-menu">
+    <li><a href="_sources/install.txt"
+           rel="nofollow">Show Source</a></li>
+  </ul>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="scalingtimingbloomfilter.html" title="Scaling Timing Bloom Filter"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="index.html" title="fuggetaboutit"
+             >previous</a> |</li>
+        <li><a href="index.html">fuggetaboutit 0.1.6 documentation</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2013, Micha Gorelick.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.2b1.
+    </div>
+  </body>
+</html>

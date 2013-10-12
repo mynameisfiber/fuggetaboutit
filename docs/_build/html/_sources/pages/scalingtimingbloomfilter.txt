@@ -1,0 +1,14 @@
+
+Scaling Timing Bloom Filter
+===========================
+
+.. autoclass:: fuggetaboutit.ScalingTimingBloomFilter
+    :members:
+
+Indices and tables
+==================
+
+* :ref:`genindex`
+* :ref:`modindex`
+* :ref:`search`
+

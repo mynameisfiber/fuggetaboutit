@@ -1,0 +1,255 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>Scaling Timing Bloom Filter &mdash; fuggetaboutit 0.1.5 documentation</title>
+    
+    <link rel="stylesheet" href="../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '0.1.5',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <script type="text/javascript" src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="top" title="fuggetaboutit 0.1.5 documentation" href="../index.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li><a href="../index.html">fuggetaboutit 0.1.5 documentation</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <div class="section" id="scaling-timing-bloom-filter">
+<h1>Scaling Timing Bloom Filter<a class="headerlink" href="#scaling-timing-bloom-filter" title="Permalink to this headline">¶</a></h1>
+<dl class="class">
+<dt id="fuggetaboutit.ScalingTimingBloomFilter">
+<em class="property">class </em><tt class="descclassname">fuggetaboutit.</tt><tt class="descname">ScalingTimingBloomFilter</tt><big>(</big><em>capacity</em>, <em>decay_time</em>, <em>error=0.005</em>, <em>error_tightning_ratio=0.5</em>, <em>growth_factor=None</em>, <em>max_load_factor=0.6</em>, <em>num_buffer_blooms=1</em>, <em>ioloop=None</em><big>)</big><a class="headerlink" href="#fuggetaboutit.ScalingTimingBloomFilter" title="Permalink to this definition">¶</a></dt>
+<dd><p>A bloom filter that will decay old values and scale up capacity as
+needed.  This bloom filter will automatically decay values such that an
+item added will be removed from the bloom after <cite>decay_time</cite> seconds.
+The underlying bloom has initial capacity <cite>capacity</cite> and maximum error
+<cite>error</cite>.  In addition, the bloom will automatically scale using
+Almeida&#8217;s method from &#8220;Scalable Bloom Filters&#8221; using an error tightning
+ratio and growth factor given by <cite>error_tightning_ratio</cite> and
+<cite>growth_factor</cite>.  A bloom filter will be scaled up when
+<cite>max_load_factor</cite> percent of the underlying bits of the bloom filter
+are in use.  This value can be a maximum on ln(2) since this would
+represent <cite>capacity</cite> number of elements being inserted.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>capacity</strong> (<em>integer</em>) &#8211; initial capacity</li>
+<li><strong>decay_time</strong> (<em>integer</em>) &#8211; time, in seconds, for an item to decay</li>
+<li><strong>error</strong> (<em>float</em>) &#8211; maximum error rate</li>
+<li><strong>error_tightning_ratio</strong> (<em>float</em>) &#8211; reduction factor for the error rate of scaled blooms</li>
+<li><strong>growth_factor</strong> (<em>float or None</em>) &#8211; increasing factor for the capacity of scaled blooms</li>
+<li><strong>max_load_factor</strong> (<em>0 &lt; float &lt; ln(2)</em>) &#8211; maximum load factor of a bloom to be considered full</li>
+<li><strong>num_buffer_blooms</strong> (<em>integer</em>) &#8211; number of spare blooms to keep to allow for frequent scaling</li>
+<li><strong>ioloop</strong> (<em>tornado.ioloop.IOLoop or None</em>) &#8211; an instance of an IOLoop to attatch the periodic decay operation to</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+<dl class="method">
+<dt id="fuggetaboutit.ScalingTimingBloomFilter.add">
+<tt class="descname">add</tt><big>(</big><em>key</em>, <em>timestamp=None</em><big>)</big><a class="headerlink" href="#fuggetaboutit.ScalingTimingBloomFilter.add" title="Permalink to this definition">¶</a></dt>
+<dd><p>Add key to the bloom filter and scale if necissary.  The key will be
+inserted at the current timestamp if parameter <cite>timestamp</cite> is not
+provided.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>key</strong> (<em>str</em>) &#8211; key to be added</li>
+<li><strong>timestamp</strong> (<em>int</em>) &#8211; timestamp of the item</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="fuggetaboutit.ScalingTimingBloomFilter.contains">
+<tt class="descname">contains</tt><big>(</big><em>key</em><big>)</big><a class="headerlink" href="#fuggetaboutit.ScalingTimingBloomFilter.contains" title="Permalink to this definition">¶</a></dt>
+<dd><p>Check if key is contained in the bloom filter</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>key</strong> (<em>str</em>) &#8211; key to be added</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body">bool</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="fuggetaboutit.ScalingTimingBloomFilter.decay">
+<tt class="descname">decay</tt><big>(</big><big>)</big><a class="headerlink" href="#fuggetaboutit.ScalingTimingBloomFilter.decay" title="Permalink to this definition">¶</a></dt>
+<dd><p>Decay the bloom filter and remove items that are older than
+<cite>decay_time</cite>.  This will also remove empty bloom filters.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="fuggetaboutit.ScalingTimingBloomFilter.expected_error">
+<tt class="descname">expected_error</tt><big>(</big><big>)</big><a class="headerlink" href="#fuggetaboutit.ScalingTimingBloomFilter.expected_error" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the current expected error rate from the blooms.  This should
+always be smaller than the maximum error given in the constructor.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body">float</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="classmethod">
+<dt id="fuggetaboutit.ScalingTimingBloomFilter.fromfile">
+<em class="property">classmethod </em><tt class="descname">fromfile</tt><big>(</big><em>f</em><big>)</big><a class="headerlink" href="#fuggetaboutit.ScalingTimingBloomFilter.fromfile" title="Permalink to this definition">¶</a></dt>
+<dd><p>Reads the bloom from the given file <cite>f</cite>.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>f</strong> (<em>file</em>) &#8211; File to save the bloom filter to</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body">ScalingTimingBloomFilter</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="fuggetaboutit.ScalingTimingBloomFilter.set_ioloop">
+<tt class="descname">set_ioloop</tt><big>(</big><em>ioloop=None</em><big>)</big><a class="headerlink" href="#fuggetaboutit.ScalingTimingBloomFilter.set_ioloop" title="Permalink to this definition">¶</a></dt>
+<dd><p>Set a new IOLoop to attatch the decay operation to.  <cite>stop()</cite> should be
+called before changing the ioloop.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>ioloop</strong> (<em>tornado.ioloop.IOLoop or None</em>) &#8211; an instance of an IOLoop to attatch the periodic decay operation to</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="fuggetaboutit.ScalingTimingBloomFilter.start">
+<tt class="descname">start</tt><big>(</big><big>)</big><a class="headerlink" href="#fuggetaboutit.ScalingTimingBloomFilter.start" title="Permalink to this definition">¶</a></dt>
+<dd><p>Start a periodic callback on the IOLoop to decay the bloom at every
+half <cite>decay_time</cite>.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="fuggetaboutit.ScalingTimingBloomFilter.stop">
+<tt class="descname">stop</tt><big>(</big><big>)</big><a class="headerlink" href="#fuggetaboutit.ScalingTimingBloomFilter.stop" title="Permalink to this definition">¶</a></dt>
+<dd><p>Stop the periodic decay operation</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="fuggetaboutit.ScalingTimingBloomFilter.tofile">
+<tt class="descname">tofile</tt><big>(</big><em>f</em><big>)</big><a class="headerlink" href="#fuggetaboutit.ScalingTimingBloomFilter.tofile" title="Permalink to this definition">¶</a></dt>
+<dd><p>Saves the current bloom to the file object <cite>f</cite>.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>f</strong> (<em>file</em>) &#8211; File to save the bloom filter to</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="indices-and-tables">
+<h1>Indices and tables<a class="headerlink" href="#indices-and-tables" title="Permalink to this headline">¶</a></h1>
+<ul class="simple">
+<li><a class="reference internal" href="../genindex.html"><em>Index</em></a></li>
+<li><a class="reference internal" href="../py-modindex.html"><em>Module Index</em></a></li>
+<li><a class="reference internal" href="../search.html"><em>Search Page</em></a></li>
+</ul>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="../index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">Scaling Timing Bloom Filter</a></li>
+<li><a class="reference internal" href="#indices-and-tables">Indices and tables</a></li>
+</ul>
+
+  <h3>This Page</h3>
+  <ul class="this-page-menu">
+    <li><a href="../_sources/pages/scalingtimingbloomfilter.txt"
+           rel="nofollow">Show Source</a></li>
+  </ul>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             >index</a></li>
+        <li><a href="../index.html">fuggetaboutit 0.1.5 documentation</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2013, Micha Gorelick.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.2b1.
+    </div>
+  </body>
+</html>
