@@ -113,7 +113,20 @@ In [16]: %timeit stbf.decay()
 ```
 
 
-
 ### todo
 
 **MOAR SPEED**
+
+
+### References
+
+Fuggetaboutit was inspired by the following papers
+
+* Paulo Sérgio Almeida, Carlos Baquero, Nuno Preguiça, David Hutchison;
+  ["Scalable Bloom Filters"](http://asc.di.fct.unl.pt/~nmp/pubs/ref--04.pdf)
+* Jonathan L. Dautrich, Chinya V. Ravishankar; ["Inferential Time-Decaying
+  Bloom Filters"
+  ](http://www.edbt.org/Proceedings/2013-Genova/papers/edbt/a23-dautrich.pdf)
+* Adam Kirsch, Michael Mitzenmacher; ["Less Hashing, Same Performance: Building
+  a Better Bloom
+  Filter"](http://www.eecs.harvard.edu/~michaelm/postscripts/rsa2008.pdf)
