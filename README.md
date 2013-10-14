@@ -58,9 +58,9 @@ easily grow beyond it.
 
 ### speed
 
-Did we mention that this thing is fast?  It's all built on python's native
-`array` module and tries as hard as it can to be performant.  On a 2011 MacBook
-Air, I get:
+Did we mention that this thing is fast?  It's all built on numpy ndarray's and
+uses a c-python module to optimize all of the important bits.  On a 2011
+MacBook Air, I get:
 
 ```
 $ python -m fuggetaboutit.benchmark
