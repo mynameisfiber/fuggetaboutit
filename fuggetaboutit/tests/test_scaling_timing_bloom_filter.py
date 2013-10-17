@@ -4,7 +4,7 @@ from fuggetaboutit.scaling_timing_bloom_filter import ScalingTimingBloomFilter
 import tornado.ioloop
 import tornado.testing
 import time
-from fuggetaboutit.utils import TimingBlock
+from fuggetaboutit.utils import TimingBlock, TestFile
 
 class TestScalingTimingBloomFilter(tornado.testing.AsyncTestCase):
     def test_decay(self):
@@ -16,6 +16,40 @@ class TestScalingTimingBloomFilter(tornado.testing.AsyncTestCase):
         except:
             pass
         assert stbf.contains("hello") == False
+
+
+    def test_save(self):
+        stbf = ScalingTimingBloomFilter(5, decay_time=30, ioloop=self.io_loop).start()
+        stbf += "hello"
+
+        assert "hello" in stbf
+        prev_num_nonzero = stbf.blooms[0]['bloom'].num_non_zero
+        stbf.tofile(open("test.stbf", "w+"))
+
+        with TestFile("test.stbf") as fd:
+            stbf2 = ScalingTimingBloomFilter.fromfile(fd)
+
+        assert "hello" in stbf
+        assert prev_num_nonzero == stbf2.blooms[0]['bloom'].num_non_zero
+
+
+    def test_size_stability(self):
+        stbf = ScalingTimingBloomFilter(10, decay_time=5, min_load_factor=0.2, growth_factor=2, ioloop=self.io_loop).start()
+        for i in xrange(100):
+            stbf.add("FOO%d" % i)
+
+        assert len(stbf.blooms) > 0, "Did not scale up"
+
+        for i in xrange(100, 130):
+            stbf.add("FOO%d" % i)
+            try:
+                self.wait(timeout = .5)
+            except:
+                pass
+            if len(stbf.blooms) == 1 and stbf.blooms[0]['id'] == 1:
+                return
+        assert "Did not scale down"
+
 
     def test_holistic(self):
         n = int(1e4)

@@ -57,12 +57,13 @@ class CountingBloomFilter(object):
         assert isinstance(key, str)
         return all(self.data[index] != 0 for index in self._indexes(key))
 
+    COUNTING_HEADER = "QdQQ"
     def tofile(self, f):
         """
         Writes the bloom into the given fileobject.
         """
-        header = struct.pack("QdQQ", self.capacity, self.error, self.num_bytes, self.num_hashes)
-        f.write(header + "\n")
+        header = struct.pack(self.COUNTING_HEADER, self.capacity, self.error, self.num_bytes, self.num_hashes)
+        f.write(header)
         self.data.tofile(f)
 
     @classmethod
@@ -71,8 +72,9 @@ class CountingBloomFilter(object):
         Reads the bloom from the given fileobject and returns the python object
         """
         self = cls.__new__(cls)
-        header = f.readline()[:-1]
-        self.capacity, self.error, self.num_bytes, self.num_hashes = struct.unpack("QdQQ", header)
+        sizeof_header = struct.calcsize(cls.COUNTING_HEADER)
+        header = f.read(sizeof_header)
+        self.capacity, self.error, self.num_bytes, self.num_hashes = struct.unpack(cls.COUNTING_HEADER, header)
         self.data = np.fromfile(f, dtype=np.uint8, count=self.num_bytes)
         return self
 

@@ -3,9 +3,8 @@
 from fuggetaboutit.timing_bloom_filter import TimingBloomFilter
 import tornado.ioloop
 import tornado.testing
-import struct
 import time
-from fuggetaboutit.utils import TimingBlock
+from fuggetaboutit.utils import TimingBlock, TestFile
 
 class TestTimingBloomFilter(tornado.testing.AsyncTestCase):
     def test_decay(self):
@@ -17,6 +16,22 @@ class TestTimingBloomFilter(tornado.testing.AsyncTestCase):
         except:
             pass
         assert tbf.contains("hello") == False
+
+
+    def test_save(self):
+        tbf = TimingBloomFilter(5, decay_time=30, ioloop=self.io_loop).start()
+        tbf += "hello"
+
+        assert "hello" in tbf
+        prev_num_nonzero = tbf.num_non_zero
+
+        tbf.tofile(open("test.tbf", "w+"))
+
+        with TestFile("test.tbf") as fd:
+            tbf2 = TimingBloomFilter.fromfile(fd)
+        assert "hello" in tbf
+        assert prev_num_nonzero == tbf2.num_non_zero
+
 
     def test_holistic(self):
         n = int(2e4)

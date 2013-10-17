@@ -64,7 +64,7 @@ class TimingBloomFilter(CountingBloomFilter):
     def add(self, key, timestamp=None):
         tick = self._tick(timestamp)
         if timestamp:
-            if not self._test_interval()(tick):
+            if timestamp < time.time() - self.decay_time:
                 return self
         if self._optimize and self.data.flags['C_CONTIGUOUS']:
             self.num_non_zero += _optimizations.timing_bloom_add(self.data, self._indexes(key), tick)
@@ -110,9 +110,10 @@ class TimingBloomFilter(CountingBloomFilter):
         self._callbacktimer.stop()
         return self
 
+    TIMING_HEADER= "dQ"
     def tofile(self, f):
-        header = struct.pack("dQ", self.decay_time, self.num_non_zero)
-        f.write(header + "\n")
+        header = struct.pack(self.TIMING_HEADER, self.decay_time, self.num_non_zero)
+        f.write(header)
         super(TimingBloomFilter, self).tofile(f)
 
     @classmethod
@@ -120,8 +121,9 @@ class TimingBloomFilter(CountingBloomFilter):
         """
         Reads the bloom from the given fileobject and returns the python object
         """
-        header = f.readline()[:-1]
-        decay_time, num_non_zero = struct.unpack("dQ", header)
+        sizeof_header = struct.calcsize(cls.TIMING_HEADER)
+        header = f.read(sizeof_header)
+        decay_time, num_non_zero = struct.unpack(cls.TIMING_HEADER, header)
         self = super(TimingBloomFilter, cls).fromfile(f)
 
         self.decay_time = decay_time

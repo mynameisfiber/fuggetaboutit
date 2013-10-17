@@ -18,7 +18,11 @@ class ScalingTimingBloomFilter(object):
     ``growth_factor``.  A bloom filter will be scaled up when
     ``max_load_factor`` percent of the underlying bits of the bloom filter
     are in use.  This value can be a maximum on ln(2) since this would
-    represent ``capacity`` number of elements being inserted.
+    represent ``capacity`` number of elements being inserted.  Conversely, the
+    bloom will be scaled down if there is one bloom left and it has a load
+    factor less than ``min_load_factor``.  Together, these two load factor
+    conditionals attempt to keep the scaling bloom at the right size for the
+    current stream of data.
     
     :param capacity: initial capacity
     :type capacity: integer
@@ -37,20 +41,19 @@ class ScalingTimingBloomFilter(object):
     
     :param max_load_factor: maximum load factor of a bloom to be considered full
     :type max_load_factor: 0 < float < ln(2)
-    
-    :param num_buffer_blooms: number of spare blooms to keep to allow for frequent scaling
-    :type num_buffer_blooms: integer
+
+    :param max_load_factor: minimum load factor of a bloom to be considered active
+    :type max_load_factor: 0 < float < max_load_factor or None
     
     :param ioloop: an instance of an IOLoop to attatch the periodic decay operation to
     :type ioloop: tornado.ioloop.IOLoop or None
     """
-    def __init__(self, capacity, decay_time, error=0.005, 
-            error_tightning_ratio = 0.5, growth_factor=None, 
-            max_load_factor=0.6, num_buffer_blooms = 1, 
-            ioloop=None):
+    def __init__(self, capacity, decay_time, error=0.005,
+            error_tightning_ratio=0.5, growth_factor=2, min_load_factor=0.2,
+            max_load_factor=0.6, ioloop=None):
         assert 0 < max_load_factor <= math.log(2), "max_load_factor must be 0<max_load_factor<=ln(2)"
+        assert max_load_factor is None or 0 < max_load_factor <= max_load_factor, "min_load_factor must be None or 0<min_load_factor<=max_load_factor"
         assert growth_factor is None or 0 < growth_factor, "growth_factor must be None or >0"
-        assert 0 <= num_buffer_blooms, "num_buffer_blooms must be >=0"
         assert 0 < error < 1, "error must be 0 < error < 1"
 
         self.max_load_factor = max_load_factor
@@ -62,12 +65,12 @@ class ScalingTimingBloomFilter(object):
 
         self.capacity = capacity
         self.decay_time = decay_time
-        self.max_id = 0
-        self.num_buffer_blooms = num_buffer_blooms
 
         self.blooms = [ ]
         self._add_new_bloom()
-        self.max_load_factor_raw = int(self.blooms[0]["bloom"].num_hashes * capacity * max_load_factor)
+
+        self.max_load_factor = max_load_factor
+        self.min_load_factor = min_load_factor
 
         self.set_ioloop(ioloop)
 
@@ -94,14 +97,23 @@ class ScalingTimingBloomFilter(object):
             pass
         self._callbacktimer = tornado.ioloop.PeriodicCallback(self.decay, self.time_per_decay, self._ioloop)
 
-    def _add_new_bloom(self):
-        error = self.error_initial * self.error_tightning_ratio ** len(self.blooms)
+    def _get_next_id(self):
+        possible_ids = set(b["id"] for b in self.blooms)
+        i = 0
+        while i in possible_ids:
+            i += 1
+        return i
+
+    def _add_new_bloom(self, _id=None):
+        _id = _id or self._get_next_id()
+        error = self.error_initial * self.error_tightning_ratio ** _id
         if self.growth_factor:
-            capacity = math.log(2) * self.capacity * self.growth_factor ** len(self.blooms)
+            capacity = int(math.log(2) * self.capacity * self.growth_factor ** _id)
         else:
             capacity = self.capacity
         self.blooms.append({
-            "id" : self.max_id,
+            "id" : _id,
+            "new" : True,
             "error" : error, 
             "capacity" : capacity,
             "bloom" : TimingBloomFilter(
@@ -110,7 +122,6 @@ class ScalingTimingBloomFilter(object):
                 error = error, 
             ),
         })
-        self.max_id += 1
 
     def expected_error(self):
         """
@@ -134,14 +145,15 @@ class ScalingTimingBloomFilter(object):
         :type timestamp: int
         """
         cur_bloom = None
-        for bloom in self.blooms:
-            if bloom["bloom"].num_non_zero < self.max_load_factor_raw:
+        for bloom in reversed(self.blooms):
+            if bloom["bloom"].num_non_zero < self.max_load_factor * bloom["capacity"] * bloom["bloom"].num_hashes:
                 cur_bloom = bloom
                 break
         if cur_bloom is None:
             self._add_new_bloom()
             cur_bloom = self.blooms[-1]
         cur_bloom["bloom"].add(key, timestamp)
+        cur_bloom["new"] = False
         return self
 
     def contains(self, key):
@@ -167,16 +179,27 @@ class ScalingTimingBloomFilter(object):
         for bloom in self.blooms:
             bloom["bloom"].decay()
             num_empty_blooms += (bloom["bloom"].num_non_zero == 0)
-        if num_empty_blooms > self.num_buffer_blooms:
-            to_remove = min(num_empty_blooms - self.num_buffer_blooms, len(self.blooms) - 1)
-            for i in reversed(xrange(len(self.blooms))):
-                bloom = self.blooms[i]
-                if bloom["bloom"].num_non_zero == 0:
+
+        if num_empty_blooms:
+            to_remove = num_empty_blooms
+            possible_blooms = sorted(enumerate(self.blooms), key=lambda b : b[1]["capacity"] / b[1]["error"], reverse=True)
+            for i, bloom in possible_blooms:
+                if bloom["bloom"].num_non_zero == 0 and not bloom["new"]:
                     item = self.blooms.pop(i)
                     del item["bloom"]
                     to_remove -= 1
                 if not to_remove:
                     break
+
+        # In the case that there is only one active bloom filter, check if it's
+        # load factor is <= the minimum load factor and, if so, create a new
+        # bloom with a smaller capacity
+        if self.min_load_factor and len(self.blooms) == 1:
+            bloom = self.blooms[0]
+            if 0 < bloom["bloom"].num_non_zero < self.min_load_factor * bloom["capacity"] * bloom["bloom"].num_hashes:
+                max_id = bloom["id"]
+                if max_id > 0:
+                    self._add_new_bloom(max_id - 1)
 
     def start(self):
         """
@@ -195,6 +218,8 @@ class ScalingTimingBloomFilter(object):
         self._callbacktimer.stop()
         return self
 
+    SCALING_TIMING_HEADER = "QddddddQd"
+    SCALING_TIMING_HEADER_BLOOM = "Qdd"
     def tofile(self, f):
         """
         Saves the current bloom to the file object ``f``.
@@ -202,11 +227,11 @@ class ScalingTimingBloomFilter(object):
         :param f: File to save the bloom filter to
         :type f: file
         """
-        header = struct.pack("QdddddQQdQ", self.capacity, self.decay_time, self.error, self.error_tightning_ratio, self.growth_factor or -1, self.max_load_factor, self.num_buffer_blooms, len(self.blooms), self.error_initial, self.max_load_factor_raw)
-        f.write(header + "\n")
+        header = struct.pack(self.SCALING_TIMING_HEADER, self.capacity, self.decay_time, self.error, self.error_tightning_ratio, self.growth_factor or -1, self.max_load_factor, self.min_load_factor or -1, len(self.blooms), self.error_initial)
+        f.write(header)
         for bloom in self.blooms:
-            bheader = struct.pack("Qdd", bloom["id"], bloom["error"], bloom["capacity"])
-            f.write(bheader + "\n")
+            bheader = struct.pack(self.SCALING_TIMING_HEADER_BLOOM, bloom["id"], bloom["error"], bloom["capacity"])
+            f.write(bheader)
             bloom["bloom"].tofile(f)
 
     @classmethod
@@ -220,25 +245,29 @@ class ScalingTimingBloomFilter(object):
         :rtype: ScalingTimingBloomFilter
         """
         self = cls.__new__(cls)
-        header = f.readline()[:-1]
-        self.capacity, self.decay_time, self.error, self.error_tightning_ratio, self.growth_factor, self.max_load_factor, self.num_buffer_blooms, N, self.error_initial, self.max_load_factor_raw = struct.unpack("QdddddQQdQ", header)
+        sizeof_header = struct.calcsize(cls.SCALING_TIMING_HEADER)
+        sizeof_header_bloom = struct.calcsize(cls.SCALING_TIMING_HEADER_BLOOM)
 
+        header = f.read(sizeof_header)
+        self.capacity, self.decay_time, self.error, self.error_tightning_ratio, self.growth_factor, self.max_load_factor, self.min_load_factor, N, self.error_initial = struct.unpack(cls.SCALING_TIMING_HEADER, header)
+
+        if self.min_load_factor == -1:
+            self.growth_factor = None
         if self.growth_factor == -1:
             self.growth_factor = None
 
         self.blooms = [ ]
-        self.max_id = 0
         for i in range(N):
-            bheader = f.readline()[:-1]
-            _id, error, capacity = struct.unpack("Qdd", bheader)
+            bheader = f.read(sizeof_header_bloom)
+            _id, error, capacity = struct.unpack(cls.SCALING_TIMING_HEADER_BLOOM, bheader)
             bloom = TimingBloomFilter.fromfile(f)
             self.blooms.append({
                 "id" : _id,
                 "error" : error,
                 "capacity" : capacity,
                 "bloom" : bloom,
+                "new" : False,
             })
-            self.max_id = max(self.max_id, _id)
 
         self._ioloop = None
         self._setup_decay()    
