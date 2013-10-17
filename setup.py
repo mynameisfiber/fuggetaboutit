@@ -18,7 +18,7 @@ _optimizations = Extension(
 
 setup(
     name = 'fuggetaboutit',
-    version = '0.2.1',
+    version = '0.2.2',
     description = 'implementations of a counting bloom filter, a ' \
         'timing bloom filter and a scaling timing bloom filter. ie: bloom ' \
         'filters for the stream',

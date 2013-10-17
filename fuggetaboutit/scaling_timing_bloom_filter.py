@@ -94,11 +94,10 @@ class ScalingTimingBloomFilter(object):
         self._callbacktimer = tornado.ioloop.PeriodicCallback(self.decay, self.time_per_decay, self._ioloop)
 
     def _get_next_id(self):
-        taken_ids = set(b["id"] for b in self.blooms)
-        i = 0
-        while i in taken_ids:
-            i += 1
-        return i
+        if self.blooms:
+            max_id = max(b["id"] for b in self.blooms)
+            return max_id + 1
+        return 0
 
     def _add_new_bloom(self, _id=None):
         _id = _id or self._get_next_id()
