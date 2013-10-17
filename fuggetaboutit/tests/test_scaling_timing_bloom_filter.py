@@ -34,7 +34,7 @@ class TestScalingTimingBloomFilter(tornado.testing.AsyncTestCase):
 
 
     def test_size_stability(self):
-        stbf = ScalingTimingBloomFilter(10, decay_time=5, min_load_factor=0.2, growth_factor=2, ioloop=self.io_loop).start()
+        stbf = ScalingTimingBloomFilter(10, decay_time=5, min_fill_factor=0.2, growth_factor=2, ioloop=self.io_loop).start()
         for i in xrange(100):
             stbf.add("FOO%d" % i)
 

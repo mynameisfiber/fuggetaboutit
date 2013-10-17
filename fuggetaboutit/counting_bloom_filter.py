@@ -57,6 +57,9 @@ class CountingBloomFilter(object):
         assert isinstance(key, str)
         return all(self.data[index] != 0 for index in self._indexes(key))
 
+    def size(self):
+        return -self.num_bytes * math.log(1 - self.num_non_zero / float(self.num_bytes)) / float(self.num_hashes) 
+
     COUNTING_HEADER = "QdQQ"
     def tofile(self, f):
         """
@@ -86,5 +89,8 @@ class CountingBloomFilter(object):
 
     def __sub__(self, other):
         return self.remove(other)
+
+    def __len__(self):
+        return self.size()
 
 
