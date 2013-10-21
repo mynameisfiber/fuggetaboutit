@@ -124,6 +124,11 @@ class ScalingTimingBloomFilter(object):
         })
 
     def size(self):
+        """
+        Returns the approximate size of the current bloom state.
+
+        :rtype: float
+        """
         return sum(b["bloom"].size() for b in self.blooms)
 
     def expected_error(self):
