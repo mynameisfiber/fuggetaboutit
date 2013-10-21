@@ -118,3 +118,57 @@ with the IOLoop.  This produces the final code::
         tornado.ioloop.IOLoop().instance().start()
 
 With this type of setup, we can asynchronously add data and decay old events.
+
+
+Scaling Bloom Size Convergence
+##############################
+
+Scaling blooms offer the ability to grow when more capacity is necissary.
+Since timing blooms also decay out data, we should be able to also reduce the
+size of the blooms that are in use and hopefully stabalize to a desireable
+size.
+
+The `min_fill_factor` and `max_fill_factor` do exactly that.  By using an
+estimate for the number of elements current in a bloom, we find the fill ratio
+(estimated number of items / capacity of the bloom) and scale up or down
+depending on whether we are above/below the max or min fill ratios.
+
+For example, let's say we initialize a bloom with a capacity for 30 items and a
+decay time of 60 seconds.  If we started inserting 45 items per second, we
+should hope the timing bloom would settle with a single bloom with a capacity
+for 60 items instead of maintaining multiple blooms that could potentially
+hinder performance::
+
+    import time
+    
+    cache = ScalingTimingBloomFilter(
+        30, 
+        decay_time=60, 
+        max_fill_factor=0.9, 
+        min_fill_factor=0.2, 
+        growth_factor=2
+    ).start()
+    for item in generate_data(N=10):
+        # insert at 1 item per 1.2second for 50 items per minute
+        cache.add(item)
+        time.sleep(1.2) 
+
+After about 27 seconds, we have inserted 90% of the capacity into the bloom and
+it gets scaled up.  By default, the next bloom filter will have `2 * sqrt(2)`
+the capacity (this value is controlled by `growth_factor`).  This new bloom
+then becomes the preferential bloom for inserts.  After 60 seconds from this
+point, all the data in the original bloom will have been decayed out and that
+bloom will be deleted.  This leave the `ScalingTimingBloomFilter` with only one
+operational bloom with a larger capacity.
+
+If the rate of inserts starts decreasing, then we now have a larger bloom
+filter than is necissary for the problem.  If the rate decreases down such that
+there are only 12 items in the new bloom of capacity 62, then we will scale it
+down.  We do this by creating a new bloom with half the capacity and keeping it
+as the preferential bloom for insertions.  After some time, the old bloom will
+decay and get deleted.
+
+Thus, by tuning the parameters for `min_fill_factor`, `max_fill_factor` and
+`growth_factor` (keeping in mind the desired `decay_time` and the rate of
+insertion of data), we can have the bloom converge on the proper capacity and
+operate using one underlying bloom filter.

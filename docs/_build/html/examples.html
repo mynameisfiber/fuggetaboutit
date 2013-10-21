@@ -163,6 +163,54 @@ with the IOLoop.  This produces the final code:</p>
 </div>
 <p>With this type of setup, we can asynchronously add data and decay old events.</p>
 </div>
+<div class="section" id="scaling-bloom-size-convergence">
+<h2>Scaling Bloom Size Convergence<a class="headerlink" href="#scaling-bloom-size-convergence" title="Permalink to this headline">¶</a></h2>
+<p>Scaling blooms offer the ability to grow when more capacity is necissary.
+Since timing blooms also decay out data, we should be able to also reduce the
+size of the blooms that are in use and hopefully stabalize to a desireable
+size.</p>
+<p>The <cite>min_fill_factor</cite> and <cite>max_fill_factor</cite> do exactly that.  By using an
+estimate for the number of elements current in a bloom, we find the fill ratio
+(estimated number of items / capacity of the bloom) and scale up or down
+depending on whether we are above/below the max or min fill ratios.</p>
+<p>For example, let&#8217;s say we initialize a bloom with a capacity for 30 items and a
+decay time of 60 seconds.  If we started inserting 45 items per second, we
+should hope the timing bloom would settle with a single bloom with a capacity
+for 60 items instead of maintaining multiple blooms that could potentially
+hinder performance:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">import</span> <span class="nn">time</span>
+
+<span class="n">cache</span> <span class="o">=</span> <span class="n">ScalingTimingBloomFilter</span><span class="p">(</span>
+    <span class="mi">30</span><span class="p">,</span>
+    <span class="n">decay_time</span><span class="o">=</span><span class="mi">60</span><span class="p">,</span>
+    <span class="n">max_fill_factor</span><span class="o">=</span><span class="mf">0.9</span><span class="p">,</span>
+    <span class="n">min_fill_factor</span><span class="o">=</span><span class="mf">0.2</span><span class="p">,</span>
+    <span class="n">growth_factor</span><span class="o">=</span><span class="mi">2</span>
+<span class="p">)</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+<span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">generate_data</span><span class="p">(</span><span class="n">N</span><span class="o">=</span><span class="mi">10</span><span class="p">):</span>
+    <span class="c"># insert at 1 item per 1.2second for 50 items per minute</span>
+    <span class="n">cache</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">item</span><span class="p">)</span>
+    <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mf">1.2</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>After about 27 seconds, we have inserted 90% of the capacity into the bloom and
+it gets scaled up.  By default, the next bloom filter will have <cite>2 * sqrt(2)</cite>
+the capacity (this value is controlled by <cite>growth_factor</cite>).  This new bloom
+then becomes the preferential bloom for inserts.  After 60 seconds from this
+point, all the data in the original bloom will have been decayed out and that
+bloom will be deleted.  This leave the <cite>ScalingTimingBloomFilter</cite> with only one
+operational bloom with a larger capacity.</p>
+<p>If the rate of inserts starts decreasing, then we now have a larger bloom
+filter than is necissary for the problem.  If the rate decreases down such that
+there are only 12 items in the new bloom of capacity 62, then we will scale it
+down.  We do this by creating a new bloom with half the capacity and keeping it
+as the preferential bloom for insertions.  After some time, the old bloom will
+decay and get deleted.</p>
+<p>Thus, by tuning the parameters for <cite>min_fill_factor</cite>, <cite>max_fill_factor</cite> and
+<cite>growth_factor</cite> (keeping in mind the desired <cite>decay_time</cite> and the rate of
+insertion of data), we can have the bloom converge on the proper capacity and
+operate using one underlying bloom filter.</p>
+</div>
 </div>
 
 
@@ -176,6 +224,7 @@ with the IOLoop.  This produces the final code:</p>
 <li><a class="reference internal" href="#">Examples</a><ul>
 <li><a class="reference internal" href="#basic-usage">Basic Usage</a></li>
 <li><a class="reference internal" href="#using-the-ioloop">Using the IOLoop</a></li>
+<li><a class="reference internal" href="#scaling-bloom-size-convergence">Scaling Bloom Size Convergence</a></li>
 </ul>
 </li>
 </ul>

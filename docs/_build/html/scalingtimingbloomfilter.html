@@ -54,18 +54,20 @@
 <h1>Scaling Timing Bloom Filter<a class="headerlink" href="#scaling-timing-bloom-filter" title="Permalink to this headline">¶</a></h1>
 <dl class="class">
 <dt id="fuggetaboutit.ScalingTimingBloomFilter">
-<em class="property">class </em><tt class="descclassname">fuggetaboutit.</tt><tt class="descname">ScalingTimingBloomFilter</tt><big>(</big><em>capacity</em>, <em>decay_time</em>, <em>error=0.005</em>, <em>error_tightning_ratio=0.5</em>, <em>growth_factor=None</em>, <em>max_load_factor=0.6</em>, <em>num_buffer_blooms=1</em>, <em>ioloop=None</em><big>)</big><a class="headerlink" href="#fuggetaboutit.ScalingTimingBloomFilter" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><tt class="descclassname">fuggetaboutit.</tt><tt class="descname">ScalingTimingBloomFilter</tt><big>(</big><em>capacity</em>, <em>decay_time</em>, <em>error=0.005</em>, <em>error_tightening_ratio=0.5</em>, <em>growth_factor=2</em>, <em>min_fill_factor=0.2</em>, <em>max_fill_factor=0.8</em>, <em>insert_order='converge'</em>, <em>ioloop=None</em><big>)</big><a class="headerlink" href="#fuggetaboutit.ScalingTimingBloomFilter" title="Permalink to this definition">¶</a></dt>
 <dd><p>A bloom filter that will decay old values and scale up capacity as
 needed.  This bloom filter will automatically decay values such that an
 item added will be removed from the bloom after <tt class="docutils literal"><span class="pre">decay_time</span></tt> seconds.
 The underlying bloom has initial capacity <tt class="docutils literal"><span class="pre">capacity</span></tt> and maximum error
 <tt class="docutils literal"><span class="pre">error</span></tt>.  In addition, the bloom will automatically scale using
-Almeida&#8217;s method from &#8220;Scalable Bloom Filters&#8221; using an error tightning
-ratio and growth factor given by <tt class="docutils literal"><span class="pre">error_tightning_ratio</span></tt> and
-<tt class="docutils literal"><span class="pre">growth_factor</span></tt>.  A bloom filter will be scaled up when
-<tt class="docutils literal"><span class="pre">max_load_factor</span></tt> percent of the underlying bits of the bloom filter
-are in use.  This value can be a maximum on ln(2) since this would
-represent <tt class="docutils literal"><span class="pre">capacity</span></tt> number of elements being inserted.</p>
+Almeida&#8217;s method from &#8220;Scalable Bloom Filters&#8221; using an error tightening
+ratio and growth factor given by <tt class="docutils literal"><span class="pre">error_tightening_ratio</span></tt> and
+<tt class="docutils literal"><span class="pre">growth_factor</span></tt>.  A bloom filter will be scaled up when approximatly
+<tt class="docutils literal"><span class="pre">max_fill_factor</span></tt> percent of the capacity of the bloom filter are in use.
+Conversely, the bloom will be scaled down if there is one bloom left and it
+has a fill percentage less than <tt class="docutils literal"><span class="pre">min_fill_factor</span></tt>.  Together, these two
+fill factor conditionals attempt to keep the scaling bloom at the right
+size for the current stream of data.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
@@ -74,10 +76,11 @@ represent <tt class="docutils literal"><span class="pre">capacity</span></tt> nu
 <li><strong>capacity</strong> (<em>integer</em>) &#8211; initial capacity</li>
 <li><strong>decay_time</strong> (<em>integer</em>) &#8211; time, in seconds, for an item to decay</li>
 <li><strong>error</strong> (<em>float</em>) &#8211; maximum error rate</li>
-<li><strong>error_tightning_ratio</strong> (<em>float</em>) &#8211; reduction factor for the error rate of scaled blooms</li>
+<li><strong>error_tightening_ratio</strong> (<em>float</em>) &#8211; reduction factor for the error rate of scaled blooms</li>
 <li><strong>growth_factor</strong> (<em>float or None</em>) &#8211; increasing factor for the capacity of scaled blooms</li>
-<li><strong>max_load_factor</strong> (<em>0 &lt; float &lt; ln(2)</em>) &#8211; maximum load factor of a bloom to be considered full</li>
-<li><strong>num_buffer_blooms</strong> (<em>integer</em>) &#8211; number of spare blooms to keep to allow for frequent scaling</li>
+<li><strong>max_fill_factor</strong> (<em>0 &lt; float &lt; max_fill_factor or None</em>) &#8211; maximum fill factor of a bloom to be considered full</li>
+<li><strong>max_fill_factor</strong> &#8211; minimum fill factor of a bloom to be considered active</li>
+<li><strong>insert_order</strong> (<em>&#8216;compact&#8217; or &#8216;converge&#8217;</em>) &#8211; Whether to insert in order to optimize compactness or convergence</li>
 <li><strong>ioloop</strong> (<em>tornado.ioloop.IOLoop or None</em>) &#8211; an instance of an IOLoop to attatch the periodic decay operation to</li>
 </ul>
 </td>

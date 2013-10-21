@@ -43,12 +43,15 @@ class ScalingTimingBloomFilter(object):
     :param max_fill_factor: minimum fill factor of a bloom to be considered active
     :type max_fill_factor: 0 < float < max_fill_factor or None
     
+    :param insert_order: Whether to insert in order to optimize compactness or convergence
+    :type insert_order: 'compact' or 'converge'
+
     :param ioloop: an instance of an IOLoop to attatch the periodic decay operation to
     :type ioloop: tornado.ioloop.IOLoop or None
     """
     def __init__(self, capacity, decay_time, error=0.005,
             error_tightening_ratio=0.5, growth_factor=2, min_fill_factor=0.2,
-            max_fill_factor=0.8, ioloop=None):
+            max_fill_factor=0.8, insert_order='converge', ioloop=None):
         assert (0 or min_fill_factor) < max_fill_factor <= 1, "max_fill_factor must be min_fill_factor<max_fill_factor<=1"
         assert min_fill_factor is None or 0 < min_fill_factor < max_fill_factor, "min_fill_factor must be None or 0<min_fill_factor<max_fill_factor"
         assert growth_factor is None or 0 < growth_factor, "growth_factor must be None or >0"
@@ -67,6 +70,8 @@ class ScalingTimingBloomFilter(object):
 
         self.max_fill_factor = max_fill_factor
         self.min_fill_factor = min_fill_factor
+
+        self.insert_tail = (insert_order == 'converge')
 
         self.set_ioloop(ioloop)
 
@@ -143,7 +148,12 @@ class ScalingTimingBloomFilter(object):
         :type timestamp: int
         """
         cur_bloom = None
-        for bloom in reversed(self.blooms):
+        bloom_iter = None
+        if self.insert_tail:
+            bloom_iter = reversed(self.blooms)
+        else:
+            bloom_iter = iter(self.blooms)
+        for bloom in bloom_iter:
             if bloom["bloom"].size() < self.max_fill_factor * bloom["capacity"]:
                 cur_bloom = bloom
                 break
