@@ -3,6 +3,8 @@
 
 > auto-scaling probabilistic time windowed set inclusion datastructure
 
+[_docs_](http://micha.gd/fuggetaboutit)
+
 ### what is?
 
 What does this mean?  Well... it means you can have a rolling window view on
