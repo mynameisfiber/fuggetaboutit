@@ -138,6 +138,8 @@ class ScalingTimingBloomFilter(object):
 
         :rtype: float
         """
+        if not self.blooms:
+            return 0.0
         return 1 - reduce(operator.mul, (1 - bloom["error"] for bloom in self.blooms))
 
     def add(self, key, timestamp=None):

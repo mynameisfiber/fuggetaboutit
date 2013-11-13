@@ -7,12 +7,15 @@ import mmh3
 
 
 class CountingBloomFilter(object):
+    _ENTRIES_PER_8BYTE = 1
     def __init__(self, capacity, error=0.005):
         self.capacity = capacity
         self.error = error
         self.num_bytes = int(-capacity * math.log(error) / math.log(2)**2) + 1
         self.num_hashes = int(self.num_bytes / capacity * math.log(2)) + 1
-        self.data = np.zeros((self.num_bytes,), dtype=np.uint8, order='C')
+
+        size = int(math.ceil(self.num_bytes / self._ENTRIES_PER_8BYTE))
+        self.data = np.zeros((size,), dtype=np.uint8, order='C')
 
     def _indexes(self, key):
         """

@@ -18,6 +18,11 @@ class TestTimingBloomFilter(tornado.testing.AsyncTestCase):
         assert tbf.contains("hello") == False
 
 
+    def test_optimization_size(self):
+        tbf = TimingBloomFilter(500, decay_time=4, ioloop=self.io_loop)
+        assert len(tbf.data) < tbf.num_bytes
+        assert tbf._ENTRIES_PER_8BYTE == 2
+
     def test_save(self):
         tbf = TimingBloomFilter(5, decay_time=30, ioloop=self.io_loop).start()
         tbf += "hello"

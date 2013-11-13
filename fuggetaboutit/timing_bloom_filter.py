@@ -14,6 +14,12 @@ except ImportError:
 
 
 class TimingBloomFilter(CountingBloomFilter):
+    @property
+    def _ENTRIES_PER_8BYTE(self):
+        if _optimizations:
+            return 2
+        return 1
+
     def __init__(self, *args, **kwargs):
         self.decay_time = kwargs.pop("decay_time", None)
         ioloop = kwargs.pop("ioloop", None)
@@ -29,7 +35,7 @@ class TimingBloomFilter(CountingBloomFilter):
         self.set_ioloop(ioloop)
 
     def _initialize(self):
-        self.ring_size = (1 << 8) - 1
+        self.ring_size = (1 << (8 / self._ENTRIES_PER_8BYTE)) - 1
         self.dN = self.ring_size / 2
         self.seconds_per_tick = self.decay_time / float(self.dN)
         self._optimize = _optimizations is not None
@@ -133,6 +139,11 @@ class TimingBloomFilter(CountingBloomFilter):
         self._setup_decay()
         return self
 
+    def remove(self, *args, **kwargs):
+        raise NotImplementedError
+
+    def remove_all(self, *args, **kwargs):
+        raise NotImplementedError
 
 if __name__ == "__main__":
     from utils import TimingBlock

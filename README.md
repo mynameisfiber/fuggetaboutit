@@ -67,13 +67,13 @@ MacBook Air, I get:
 ```
 $ python -m fuggetaboutit.benchmark
 Benchmarking blooms with size 100000
-(baseline timing of keygeneration: 9.05e-06s, already subtracted from results)
+(baseline timing of keygeneration: 1.00e-05s, already subtracted from results)
 .-------------------------------------------------------------------------------.
 |                                    | bench_add | bench_contains | bench_decay |
 |===============================================================================|
-|                Timing Bloom Filter | 1.14e-05s | 8.3294845e-06s | 7.1923e-03s |
-|        Scaling Timing Bloom Filter | 1.80e-05s | 9.4831681e-06s | 2.0861e-03s |
-| Scaled Scaling Timing Bloom Filter | 1.73e-05s | 1.8474863e-05s | 1.8751e-02s |
+|                Timing Bloom Filter | 1.34e-05s | 9.2868543e-06s | 1.1306e-02s |
+|        Scaling Timing Bloom Filter | 1.71e-05s | 1.1165640e-05s | 3.4041e-03s |
+| Scaled Scaling Timing Bloom Filter | 1.77e-05s | 2.0139549e-05s | 4.4394e-02s |
 '-------------------------------------------------------------------------------'
 ```
 

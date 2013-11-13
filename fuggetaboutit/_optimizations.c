@@ -4,11 +4,10 @@
 #include <stdlib.h>
  
 /* Docstrings */
-static char module_docstring[] = "Provides fast implemintations of possibly slow functions in fuggetaboutit";
+static char module_docstring[] = "Provides fast implemintations of possibly slow functions in fuggetaboutit.  In addition, this module implements the bloom filters in 4 bits instead of 8.";
 static char timing_bloom_decay_docstring[] = "Decay a timing bloom";
 static char timing_bloom_contains_docstring[] = "Check if a bloom contains a key";
 static char timing_bloom_add_docstring[] = "Adds a tick to a bloom";
-
 
 PyObject* py_timing_bloom_add(PyObject* self, PyObject* args) {
     PyArrayObject* data;
@@ -30,17 +29,29 @@ PyObject* py_timing_bloom_add(PyObject* self, PyObject* args) {
     
 
     uint8_t *values = PyArray_DATA(data);
+    uint8_t temp, n;
     int num_non_zero = 0;
     PyObject *pyindex;
-    long index;
+    long index, access_index;
 
     while ((pyindex = PyIter_Next(indexes)) != NULL) {
         index = PyInt_AsLong(pyindex);
         Py_DECREF(pyindex);
-        if (values[index] == 0) {
+        access_index = index / 2;
+
+        n = values[access_index];
+        if (index % 2 == 0) {
+            temp = (n & 0xf0) >> 4;
+            n = ((tick << 4) & 0xf0) + (n & 0x0f);
+        } else {
+            temp = (n & 0x0f);
+            n = (tick & 0x0f) + (n & 0xf0);
+        }
+
+        if (temp == 0) {
             num_non_zero += 1;
         }
-        values[index] = tick;
+        values[access_index] = n;
     }
     Py_DECREF(indexes);
 
@@ -72,12 +83,17 @@ PyObject* py_timing_bloom_contains(PyObject* self, PyObject* args) {
     bool ring_interval = (tick_max < tick_min);
     bool contains = true;
     PyObject *pyindex;
-    long index;
+    long index, access_index;
 
     while ((pyindex = PyIter_Next(indexes)) != NULL) {
         index = PyInt_AsLong(pyindex);
-        value = (uint8_t)values[index];
         Py_DECREF(pyindex);
+        access_index = index / 2;
+        if (index % 2 == 0) {
+            value = (values[access_index] & 0xf0) >> 4;
+        } else {
+            value = values[access_index] & 0x0f;
+        }
         if (value == 0 || (!ring_interval && !(value > tick_min && value <= tick_max)) || (ring_interval && !(value > tick_min || value <= tick_max))) {
             contains = false;
             break;
@@ -102,18 +118,28 @@ PyObject* py_timing_bloom_decay(PyObject* self, PyObject* args) {
         return NULL;
     }
     
-    const int N = (int) PyArray_DIM(data, 0);
+    const int N = (int) PyArray_DIM(data, 0) * 2;
     uint8_t value;
     uint8_t *values = PyArray_DATA(data);
     int num_non_zero = 0;
     bool ring_interval = (tick_max < tick_min);
+    long access_index;
 
     #pragma omp parallel for if(N > 1e6) reduction(+:num_non_zero)
-    for(int i=0; i<N; i++) {
-        value = (uint8_t)values[i];
+    for(long i=0; i<N; i++) {
+        access_index = i / 2;
+        if (i % 2 == 0) {
+            value = (values[access_index] & 0xf0) >> 4;
+        } else {
+            value = values[access_index] & 0x0f;
+        }
         if (value != 0) {
             if ((!ring_interval && !(value > tick_min && value <= tick_max)) || (ring_interval && !(value > tick_min || value <= tick_max))) {
-                values[i] = 0;
+                if (i % 2 == 0) {
+                    values[access_index] &= 0x0f;
+                } else {
+                    values[access_index] &= 0xf0;
+                }
             } else {
                 num_non_zero += 1;
             }
