@@ -29,7 +29,9 @@ class TestScalingTimingBloomFilter(tornado.testing.AsyncTestCase):
         with TestFile("test.stbf") as fd:
             stbf2 = ScalingTimingBloomFilter.fromfile(fd)
 
+        stbf.add("hello2")
         assert "hello" in stbf
+        assert "hello2" in stbf
         assert prev_num_nonzero == stbf2.blooms[0]['bloom'].num_non_zero
 
 
