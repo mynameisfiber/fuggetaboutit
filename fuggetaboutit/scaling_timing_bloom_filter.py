@@ -284,6 +284,7 @@ class ScalingTimingBloomFilter(object):
                 "new" : False,
             })
 
+        self.insert_tail = True #TODO: have this be in the file
         self._ioloop = None
         self._setup_decay()    
         return self
