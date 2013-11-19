@@ -125,20 +125,28 @@ PyObject* py_timing_bloom_decay(PyObject* self, PyObject* args) {
     bool ring_interval = (tick_max < tick_min);
     long access_index;
 
-    for(long i=0; i<N; i++) {
+    if (ring_interval) {
+        uint8_t tmp = tick_min;
+        tick_min = tick_max;
+        tick_max = tmp;
+    }
+
+    for(long i=0; i<N; i+=2) {
         access_index = i / 2;
-        if (i % 2 == 0) {
-            value = (values[access_index] & 0xf0) >> 4;
-        } else {
-            value = values[access_index] & 0x0f;
-        }
+        value = (values[access_index] & 0xf0) >> 4;
+        
         if (value != 0) {
-            if ((!ring_interval && !(value > tick_min && value <= tick_max)) || (ring_interval && !(value > tick_min || value <= tick_max))) {
-                if (i % 2 == 0) {
-                    values[access_index] &= 0x0f;
-                } else {
-                    values[access_index] &= 0xf0;
-                }
+            if ((value > tick_max || value < tick_min) ^ ring_interval)  {
+                values[access_index] &= 0x0f;
+            } else {
+                num_non_zero += 1;
+            }
+        }
+
+        value = values[access_index] & 0x0f;
+        if (value != 0) {
+            if ((value > tick_max || value < tick_min) ^ ring_interval)  {
+                values[access_index] &= 0xf0;
             } else {
                 num_non_zero += 1;
             }
