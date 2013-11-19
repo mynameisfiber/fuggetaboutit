@@ -125,7 +125,6 @@ PyObject* py_timing_bloom_decay(PyObject* self, PyObject* args) {
     bool ring_interval = (tick_max < tick_min);
     long access_index;
 
-    #pragma omp parallel for if(N > 1e6) reduction(+:num_non_zero)
     for(long i=0; i<N; i++) {
         access_index = i / 2;
         if (i % 2 == 0) {

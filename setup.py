@@ -12,13 +12,13 @@ import numpy.distutils.misc_util
 _optimizations = Extension(
     'fuggetaboutit._optimizations',
     sources = ['fuggetaboutit/_optimizations.c', ],
-    extra_compile_args = ["-O3", "-std=c99", "-fopenmp", "-Wall", "-p", "-pg", ],
-    extra_link_args = ["-lgomp", "-lc"],
+    extra_compile_args = ["-O3", "-std=c99", "-Wall", "-p", "-pg", ],
+    extra_link_args = ["-lc"],
 )
 
 setup(
     name = 'fuggetaboutit',
-    version = '0.3.2',
+    version = '0.3.3',
     description = 'implementations of a counting bloom filter, a ' \
         'timing bloom filter and a scaling timing bloom filter. ie: bloom ' \
         'filters for the stream',
