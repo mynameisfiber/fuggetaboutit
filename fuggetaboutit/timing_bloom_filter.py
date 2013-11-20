@@ -12,14 +12,10 @@ except ImportError:
     print "Could not load optimizations"
     _optimizations = None
 
+_ENTRIES_PER_8BYTE = 2 if _optimizations is not None else 1
 
 class TimingBloomFilter(CountingBloomFilter):
-    @property
-    def _ENTRIES_PER_8BYTE(self):
-        if _optimizations:
-            return 2
-        return 1
-
+    _ENTRIES_PER_8BYTE = _ENTRIES_PER_8BYTE
     def __init__(self, *args, **kwargs):
         self.decay_time = kwargs.pop("decay_time", None)
         ioloop = kwargs.pop("ioloop", None)
@@ -45,7 +41,7 @@ class TimingBloomFilter(CountingBloomFilter):
         self._setup_decay()
 
     def _setup_decay(self):
-        self.time_per_decay = self.seconds_per_tick * 1000.0 / 2.0
+        self.time_per_decay = self.seconds_per_tick * 1000.0
         try:
             self.stop()
         except:

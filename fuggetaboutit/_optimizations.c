@@ -85,6 +85,12 @@ PyObject* py_timing_bloom_contains(PyObject* self, PyObject* args) {
     PyObject *pyindex;
     long index, access_index;
 
+    if (ring_interval) {
+        uint8_t tmp = tick_min;
+        tick_min = tick_max;
+        tick_max = tmp;
+    }
+
     while ((pyindex = PyIter_Next(indexes)) != NULL) {
         index = PyInt_AsLong(pyindex);
         Py_DECREF(pyindex);
@@ -94,7 +100,7 @@ PyObject* py_timing_bloom_contains(PyObject* self, PyObject* args) {
         } else {
             value = values[access_index] & 0x0f;
         }
-        if (value == 0 || (!ring_interval && !(value > tick_min && value <= tick_max)) || (ring_interval && !(value > tick_min || value <= tick_max))) {
+        if (value == 0 || ((value > tick_max || value <= tick_min) ^ ring_interval))  {
             contains = false;
             break;
         }
@@ -136,7 +142,7 @@ PyObject* py_timing_bloom_decay(PyObject* self, PyObject* args) {
         value = (values[access_index] & 0xf0) >> 4;
         
         if (value != 0) {
-            if ((value > tick_max || value < tick_min) ^ ring_interval)  {
+            if ((value > tick_max || value <= tick_min) ^ ring_interval)  {
                 values[access_index] &= 0x0f;
             } else {
                 num_non_zero += 1;
@@ -145,7 +151,7 @@ PyObject* py_timing_bloom_decay(PyObject* self, PyObject* args) {
 
         value = values[access_index] & 0x0f;
         if (value != 0) {
-            if ((value > tick_max || value < tick_min) ^ ring_interval)  {
+            if ((value > tick_max || value <= tick_min) ^ ring_interval)  {
                 values[access_index] &= 0xf0;
             } else {
                 num_non_zero += 1;

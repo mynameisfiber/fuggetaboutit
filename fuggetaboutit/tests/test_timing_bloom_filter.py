@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from fuggetaboutit.timing_bloom_filter import TimingBloomFilter
+from fuggetaboutit.timing_bloom_filter import TimingBloomFilter, _ENTRIES_PER_8BYTE
 import tornado.ioloop
 import tornado.testing
 import time
@@ -20,8 +20,8 @@ class TestTimingBloomFilter(tornado.testing.AsyncTestCase):
 
     def test_optimization_size(self):
         tbf = TimingBloomFilter(500, decay_time=4, ioloop=self.io_loop)
+        assert _ENTRIES_PER_8BYTE == 2
         assert len(tbf.data) < tbf.num_bytes
-        assert tbf._ENTRIES_PER_8BYTE == 2
 
     def test_save(self):
         tbf = TimingBloomFilter(5, decay_time=30, ioloop=self.io_loop).start()

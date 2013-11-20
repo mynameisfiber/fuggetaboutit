@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import tornado.ioloop
-from timing_bloom_filter import TimingBloomFilter
+from timing_bloom_filter import TimingBloomFilter, _ENTRIES_PER_8BYTE
 import math
 import struct
 import operator
@@ -88,10 +88,10 @@ class ScalingTimingBloomFilter(object):
         self._setup_decay()
 
     def _setup_decay(self):
-        self.ring_size = (1 << 8) - 1
+        self.ring_size = (1 << 8 / _ENTRIES_PER_8BYTE) - 1
         self.dN = self.ring_size / 2
         self.seconds_per_tick = self.decay_time / float(self.dN)
-        self.time_per_decay = self.seconds_per_tick * 1000.0 / 2.0
+        self.time_per_decay = self.seconds_per_tick * 1000.0 
         try:
             self.stop()
         except:
