@@ -65,14 +65,15 @@ uses a c-python module to optimize all of the important bits.  On a 2011
 MacBook Air, I get:
 
 ```
+$ python -m fuggetaboutit.benchmark
 Benchmarking blooms with size 100000
-(baseline timing of keygeneration: 9.19e-06s, already subtracted from results)
+(baseline timing of keygeneration: 9.84e-06s, already subtracted from results)
 .-------------------------------------------------------------------------------.
 |                                    | bench_add | bench_contains | bench_decay |
 |===============================================================================|
-|                Timing Bloom Filter | 1.12e-05s | 9.0260315e-06s | 2.0072e-03s |
-|        Scaling Timing Bloom Filter | 1.61e-05s | 1.0465627e-05s | 1.8692e-03s |
-| Scaled Scaling Timing Bloom Filter | 1.72e-05s | 1.9492631e-05s | 1.6649e-02s |
+|                Timing Bloom Filter | 1.09e-05s | 8.1764627e-06s | 1.9898e-03s |
+|        Scaling Timing Bloom Filter | 1.57e-05s | 1.6510360e-05s | 2.3653e-03s |
+| Scaled Scaling Timing Bloom Filter | 2.41e-05s | 1.9161074e-05s | 1.5937e-02s |
 '-------------------------------------------------------------------------------'
 ```
 
