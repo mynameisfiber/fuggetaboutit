@@ -1,52 +1,29 @@
 #!/usr/bin/env python
+import logging 
 
 from counting_bloom_filter import CountingBloomFilter
-import tornado.ioloop
-import tornado.testing
 import struct
 import time
 
-try:
-    import _optimizations
-except ImportError:
-    print "Could not load optimizations"
-    _optimizations = None
+import _optimizations
 
 _ENTRIES_PER_8BYTE = 2 if _optimizations is not None else 1
 
+
 class TimingBloomFilter(CountingBloomFilter):
     _ENTRIES_PER_8BYTE = _ENTRIES_PER_8BYTE
-    def __init__(self, *args, **kwargs):
-        self.decay_time = kwargs.pop("decay_time", None)
-        ioloop = kwargs.pop("ioloop", None)
-        assert self.decay_time is not None, "Must provide decay_time parameter"
+
+    def __init__(self, decay_time, *args, **kwargs):
+        self.decay_time = decay_time
 
         super(TimingBloomFilter, self).__init__(*args, **kwargs)
-        self.ring_size = None
-        self.dN = None
-        self.seconds_per_tick = None
-        self.num_non_zero = 0
 
-        self._initialize()
-        self.set_ioloop(ioloop)
-
-    def _initialize(self):
         self.ring_size = (1 << (8 / self._ENTRIES_PER_8BYTE)) - 1
         self.dN = self.ring_size / 2
         self.seconds_per_tick = self.decay_time / float(self.dN)
         self._optimize = _optimizations is not None
+        self.num_non_zero = 0
 
-    def set_ioloop(self, ioloop=None):
-        self._ioloop = ioloop or tornado.ioloop.IOLoop.instance()
-        self._setup_decay()
-
-    def _setup_decay(self):
-        self.time_per_decay = self.seconds_per_tick * 1000.0
-        try:
-            self.stop()
-        except:
-            pass
-        self._callbacktimer = tornado.ioloop.PeriodicCallback(self.decay, self.time_per_decay, self._ioloop)
 
     def _tick(self, timestamp=None):
         return int(((timestamp or time.time()) // self.seconds_per_tick) % self.ring_size) + 1
@@ -102,78 +79,13 @@ class TimingBloomFilter(CountingBloomFilter):
                     else:
                         self.num_non_zero += 1
 
-    def start(self):
-        assert not self._callbacktimer._running, "Decay timer already running"
-        self._callbacktimer.start()
-        return self
-
-    def stop(self):
-        assert self._callbacktimer._running, "Decay timer not running"
-        self._callbacktimer.stop()
-        return self
-
-    TIMING_HEADER= "dQ"
-    def tofile(self, f):
-        header = struct.pack(self.TIMING_HEADER, self.decay_time, self.num_non_zero)
-        f.write(header)
-        super(TimingBloomFilter, self).tofile(f)
-
-    @classmethod
-    def fromfile(cls, f):
-        """
-        Reads the bloom from the given fileobject and returns the python object
-        """
-        sizeof_header = struct.calcsize(cls.TIMING_HEADER)
-        header = f.read(sizeof_header)
-        decay_time, num_non_zero = struct.unpack(cls.TIMING_HEADER, header)
-        self = super(TimingBloomFilter, cls).fromfile(f)
-
-        self.decay_time = decay_time
-        self.num_non_zero = num_non_zero
-        self._ioloop = None
-        self._initialize()
-        self._setup_decay()
-        return self
+    def get_meta(self):
+        meta = super(TimingBloomFilter, self).get_meta()
+        meta['decay_time'] = self.decay_time
+        return meta
 
     def remove(self, *args, **kwargs):
         raise NotImplementedError
 
     def remove_all(self, *args, **kwargs):
         raise NotImplementedError
-
-if __name__ == "__main__":
-    from utils import TimingBlock
-    N = int(1e5)
-    T = 10
-
-    print "Initializing"
-    tbf = TimingBloomFilter(2*N, decay_time=T)
-
-    with TimingBlock("Adding", N):
-        for i in xrange(N):
-            tbf.add("idx_%d" % i)
-    start = time.time()
-
-    with TimingBlock("Contains(+)", N):
-        for i in xrange(N):
-            assert tbf.contains("idx_%d" % i), "False negative"
-
-    with TimingBlock("Contains(-)", N):
-        c = 0
-        for i in xrange(N, 2*N):
-            c += tbf.contains("idx_%d" % i)
-        assert c / float(N) <= tbf.error, "Too many false positives"
-
-    print "Waiting for decay"
-    tbf.decay()
-    time.sleep(T - time.time() + start + 1)
-    with TimingBlock("Decaying in C", 1):
-        tbf.decay()
-
-    print "Number of non-zero entries: ", tbf.num_non_zero
-
-    with TimingBlock("Contains(expired)", N):
-        c = 0
-        for i in xrange(N):
-            c += tbf.contains("idx_%d" % i)
-        assert c / float(N) <= tbf.error, "Too many false positives"

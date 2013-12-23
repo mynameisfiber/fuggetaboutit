@@ -12,7 +12,7 @@ import numpy.distutils.misc_util
 _optimizations = Extension(
     'fuggetaboutit._optimizations',
     sources = ['fuggetaboutit/_optimizations.c', ],
-    extra_compile_args = ["-O2", "-std=c99", "-Wall", "-p", "-pg", ],
+    extra_compile_args = ["-O2", "-std=c99", "-Wall", "-p", "-pg", "-g"],
     extra_link_args = ["-lc"],
 )
 

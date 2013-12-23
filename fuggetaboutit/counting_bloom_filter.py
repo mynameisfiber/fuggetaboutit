@@ -1,21 +1,30 @@
-#!/usr/bin/env python
+import logging
+import os
+import json
 
 import numpy as np
-import struct
 import math
 import mmh3
 
 
+
 class CountingBloomFilter(object):
     _ENTRIES_PER_8BYTE = 1
-    def __init__(self, capacity, error=0.005):
+    def __init__(self, capacity, data_path, error=0.005, id=None):
         self.capacity = capacity
         self.error = error
         self.num_bytes = int(-capacity * math.log(error) / math.log(2)**2) + 1
         self.num_hashes = int(self.num_bytes / capacity * math.log(2)) + 1
+        self.data_path = data_path
+        self.bloom_filename = os.path.join(data_path, 'bloom.npy')
+        self.meta_filename = os.path.join(data_path, 'meta.json')
+        self.id = id
 
         size = int(math.ceil(self.num_bytes / self._ENTRIES_PER_8BYTE))
-        self.data = np.zeros((size,), dtype=np.uint8, order='C')
+        if os.path.exists(self.bloom_filename):
+            self.data = np.load(self.bloom_filename)
+        else:
+            self.data = np.zeros((size,), dtype=np.uint8, order='C')
 
     def _indexes(self, key):
         """
@@ -63,26 +72,40 @@ class CountingBloomFilter(object):
     def size(self):
         return -self.num_bytes * math.log(1 - self.num_non_zero / float(self.num_bytes)) / float(self.num_hashes) 
 
-    COUNTING_HEADER = "QdQQ"
-    def tofile(self, f):
-        """
-        Writes the bloom into the given fileobject.
-        """
-        header = struct.pack(self.COUNTING_HEADER, self.capacity, self.error, self.num_bytes, self.num_hashes)
-        f.write(header)
-        self.data.tofile(f)
+    def flush_data(self):
+        np.save(self.bloom_filename, self.data)
+
+    def get_meta(self):
+        return {
+            'capacity': self.capacity,
+            'error': self.error,
+            'id': self.id,
+        }
+
+    def save(self):
+        logging.info("Saving counting bloom to %s" % self.data_path)
+        if not os.path.exists(self.data_path):
+            logging.info("Bloom path doesn't exist, creating:  %s" % self.data_path)
+            os.makedirs(self.data_path)
+
+        self.flush_data()
+        meta = self.get_meta()
+
+        with open(self.meta_filename, 'w') as meta_file:
+            json.dump(meta, meta_file)
 
     @classmethod
-    def fromfile(cls, f):
-        """
-        Reads the bloom from the given fileobject and returns the python object
-        """
-        self = cls.__new__(cls)
-        sizeof_header = struct.calcsize(cls.COUNTING_HEADER)
-        header = f.read(sizeof_header)
-        self.capacity, self.error, self.num_bytes, self.num_hashes = struct.unpack(cls.COUNTING_HEADER, header)
-        self.data = np.fromfile(f, dtype=np.uint8, count=self.num_bytes)
-        return self
+    def load(cls, data_path):
+        logging.info("Loading counting bloom from %s" % data_path)
+        kwargs = None
+
+        with open(os.path.join(data_path, 'meta.json'), 'r') as meta_file:
+            kwargs = json.load(meta_file)
+
+        kwargs['data_path'] = data_path
+
+        return cls(**kwargs)
+
 
     def __contains__(self, key):
         return self.contains(key)
