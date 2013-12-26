@@ -35,7 +35,7 @@ setup(
         "License :: OSI Approved :: GNU Lesser General Public License v3 or later (LGPLv3+)",
     ],
 
-    packages = ['fuggetaboutit', 'fuggetaboutit.tests'],
+    packages = ['fuggetaboutit',],
     ext_modules = [_optimizations,],
     include_dirs = numpy.distutils.misc_util.get_numpy_include_dirs(),
 

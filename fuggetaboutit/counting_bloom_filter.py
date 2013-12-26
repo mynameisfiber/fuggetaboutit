@@ -13,20 +13,25 @@ class CountingBloomFilter(object):
     def __init__(self, capacity, data_path, error=0.005, id=None):
         self.capacity = capacity
         self.error = error
+        self.data_path = data_path
+
         self.num_bytes = int(-capacity * math.log(error) / math.log(2)**2) + 1
         self.num_hashes = int(self.num_bytes / capacity * math.log(2)) + 1
-        self.data_path = data_path
+        
         self.bloom_filename = os.path.join(data_path, 'bloom.npy')
         self.meta_filename = os.path.join(data_path, 'meta.json')
+        
         self.id = id
 
-        size = int(math.ceil(self.num_bytes / self._ENTRIES_PER_8BYTE))
         if os.path.exists(self.bloom_filename):
             self.data = np.load(self.bloom_filename)
+            self.num_non_zero = np.count_nonzero(self.data)
         else:
+            size = int(math.ceil(self.num_bytes / self._ENTRIES_PER_8BYTE))
             self.data = np.zeros((size,), dtype=np.uint8, order='C')
+            self.num_non_zero = 0
 
-    def _indexes(self, key):
+    def get_indexes(self, key):
         """
         Generates the indicies corresponding to the given key
         """
@@ -39,37 +44,57 @@ class CountingBloomFilter(object):
         Adds `N` counts to the indicies given by the key
         """
         assert isinstance(key, str)
-        for index in self._indexes(key):
+        for index in self.get_indexes(key):
+            self.num_non_zero += (self.data[index] == 0)
             self.data[index] += N
-        return self
+
+    def decrement_bucket(self, index, N=1):
+        """
+        Safely and efficiently decrements the value of a given bucket
+        """
+        data = self.data
+        old_value = data[index]
+        new_value = 0
+
+        if old_value == 0:
+            return 0
+
+        if old_value <= N:
+            new_value = 0
+            self.num_non_zero -= 1
+        else:
+            new_value = old_value - N
+
+        data[index] = new_value
+        return new_value
 
     def remove(self, key, N=1):
         """
         Removes `N` counts to the indicies given by the key
         """
         assert isinstance(key, str)
-        indexes = list(self._indexes(key))
-        if not any(self.data[index] < N for index in indexes):
-            for index in indexes:
-                self.data[index] -= N
-        return self
+        indexes = list(self.get_indexes(key))
+        for index in indexes:
+            self.decrement_bucket(index, N)
 
     def remove_all(self, N=1):
         """
         Removes `N` counts to all indicies.  Useful for expirations
         """
         for i in xrange(self.num_bytes):
-            if self.data[i] >= N:
-                self.data[i] -= N
+            self.decrement_bucket(i, N)
 
     def contains(self, key):
         """
         Check if the current bloom contains the key `key`
         """
         assert isinstance(key, str)
-        return all(self.data[index] != 0 for index in self._indexes(key))
+        return all(self.data[index] != 0 for index in self.get_indexes(key))
 
-    def size(self):
+    def get_size(self):
+        """
+        Returns the density of the bloom which can be used to determine if the bloom is "full"
+        """
         return -self.num_bytes * math.log(1 - self.num_non_zero / float(self.num_bytes)) / float(self.num_hashes) 
 
     def flush_data(self):
@@ -111,12 +136,14 @@ class CountingBloomFilter(object):
         return self.contains(key)
 
     def __add__(self, other):
-        return self.add(other)
+        self.add(other)
+        return self
 
     def __sub__(self, other):
-        return self.remove(other)
+        self.remove(other)
+        return self
 
     def __len__(self):
-        return self.size()
+        return self.get_size()
 
 
