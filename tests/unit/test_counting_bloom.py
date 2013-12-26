@@ -16,21 +16,29 @@ BLOOM_DEFAULTS = {
 
 
 def get_bloom(**overrides):
+    '''
+    Helper function to easily get a bloom for testing.
+    '''
     kwargs = copy(BLOOM_DEFAULTS)
     kwargs.update(overrides)
 
     return CountingBloomFilter(**kwargs)
 
 def assert_empty_bloom(bloom):
+    '''
+    Helper function to test that a bloom has no data.
+    '''
     assert 0 == np.count_nonzero(bloom.data)
 
 
 def test_init_no_bloom_data():
+    # Setup test data
     capacity = 1000
     error = 0.002
     data_path = '/does/not/exist'
     id = 5
 
+    # Call init and get back a bloom
     bloom = CountingBloomFilter(
         capacity=capacity,
         error=error,
@@ -38,6 +46,7 @@ def test_init_no_bloom_data():
         id=id,
     )
 
+    # Make sure the bloom is setup as expected
     assert capacity == bloom.capacity
     assert error == bloom.error
     assert data_path == bloom.data_path
@@ -59,6 +68,7 @@ def test_init_no_bloom_data():
 @patch('numpy.load')
 @patch('os.path.exists')
 def test_init_with_bloom_data(exists_mock, load_mock):
+    # Setup test data and mocks
     exists_mock.return_value = True
     load_mock.return_value = sentinel.data
 
@@ -66,13 +76,14 @@ def test_init_with_bloom_data(exists_mock, load_mock):
     error = 0.002
     data_path = '/does/not/exist'
 
-
+    # Call init
     bloom = CountingBloomFilter(
         capacity=capacity,
         error=error,
         data_path=data_path,
     )
 
+    # Check that the bloom is setup as expected
     assert capacity == bloom.capacity
     assert error == bloom.error
     assert data_path == bloom.data_path
@@ -95,9 +106,13 @@ def test_init_with_bloom_data(exists_mock, load_mock):
 
 
 def test_indexes():
+    # Get a bloom
     bloom = get_bloom()
     
+    # Get the indexes that should get incremented for the item 'test'
     indexes = list(bloom.get_indexes('test'))
+
+    # Check that the returned indexes match the expected results
     expected_indexes = [2461, 16351L, 12513L, 8675L, 4837L, 999L, 14889L, 11051L, 7213L, 3375L, 17265L, 13427L]
     assert expected_indexes == indexes
 
@@ -119,10 +134,13 @@ def test_add():
 
 
 def test_decrement_empty_bucket():
+    # Get a bloom
     bloom = get_bloom()
 
+    # Do the decrement
     bloom.decrement_bucket(index=5)
 
+    # Check that the bloom is unmodified
     assert_empty_bloom(bloom)
     expected_num_non_zero = 0
     assert expected_num_non_zero == bloom.num_non_zero
