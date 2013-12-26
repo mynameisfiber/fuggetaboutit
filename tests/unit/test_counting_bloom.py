@@ -29,6 +29,7 @@ def assert_empty_bloom(bloom):
     Helper function to test that a bloom has no data.
     '''
     assert 0 == np.count_nonzero(bloom.data)
+    assert bloom.num_non_zero == 0
 
 
 def test_init_no_bloom_data():

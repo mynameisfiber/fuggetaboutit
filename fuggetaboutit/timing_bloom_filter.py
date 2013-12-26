@@ -22,19 +22,19 @@ class TimingBloomFilter(CountingBloomFilter):
         self.dN = self.ring_size / 2
         self.seconds_per_tick = self.decay_time / float(self.dN)
         self._optimize = _optimizations is not None
-        self.num_non_zero = 0
 
 
-    def _tick(self, timestamp=None):
+    def get_tick(self, timestamp=None):
         return int(((timestamp or time.time()) // self.seconds_per_tick) % self.ring_size) + 1
 
-    def _tick_range(self):
-        tick_max = self._tick()
+    def get_tick_range(self):
+        tick_max = self.get_tick()
         tick_min = (tick_max - self.dN - 1) % self.ring_size + 1
         return tick_min, tick_max
 
-    def _test_interval(self):
-        tick_min, tick_max = self._tick_range()
+    def get_interval_test(self):
+        tick_min, tick_max = self.get_tick_range()
+
         if tick_min < tick_max:
             return lambda x : x and tick_min < x <= tick_max
         else:
