@@ -3,8 +3,10 @@ import json
 
 from mock import MagicMock, mock_open, patch, sentinel
 import numpy as np
+import pytest
 
 from fuggetaboutit.counting_bloom_filter import CountingBloomFilter
+from fuggetaboutit.exceptions import PersistenceDisabledException
 
 
 BLOOM_DEFAULTS = {
@@ -61,6 +63,39 @@ def test_init_no_bloom_data():
     expected_bloom_filename = '/does/not/exist/bloom.npy'
     assert expected_bloom_filename == bloom.bloom_filename
     expected_meta_filename = '/does/not/exist/meta.json'
+    assert expected_meta_filename == bloom.meta_filename
+
+    assert_empty_bloom(bloom)
+
+def test_init_no_data_path():
+    # Setup test data
+    capacity = 1000
+    error = 0.002
+    data_path = None
+    id = 5
+
+    # Call init and get back a bloom
+    bloom = CountingBloomFilter(
+        capacity=capacity,
+        error=error,
+        data_path=data_path,
+        id=id,
+    )
+
+    # Make sure the bloom is setup as expected
+    assert capacity == bloom.capacity
+    assert error == bloom.error
+    assert data_path == bloom.data_path
+    assert id == bloom.id
+
+    expected_num_bytes = 12935
+    assert expected_num_bytes == bloom.num_bytes
+    expected_num_hashes = 9
+    assert expected_num_hashes == bloom.num_hashes
+
+    expected_bloom_filename = None
+    assert expected_bloom_filename == bloom.bloom_filename
+    expected_meta_filename = None
     assert expected_meta_filename == bloom.meta_filename
 
     assert_empty_bloom(bloom)
@@ -321,6 +356,14 @@ def test_flush_data(save_mock):
     save_mock.assert_called_once_with(bloom.bloom_filename, sentinel.data)
 
 
+def test_flush_data_without_data_path():
+    # Get a bloom
+    bloom = get_bloom(data_path=None)
+
+    # Call flush
+    with pytest.raises(PersistenceDisabledException):
+        bloom.flush_data()
+
 def test_get_meta():
     # Get a bloom
     bloom = get_bloom()
@@ -386,6 +429,13 @@ def test_existing_save(exists_mock, makedirs_mock):
     # Make sure the meta data got saved
     save_target_mock.assert_called_once_with(bloom.meta_filename, 'w')
 
+def test_savewithout_data_path():
+    # Get a bloom
+    bloom = get_bloom(data_path=None)
+
+    # Call save
+    with pytest.raises(PersistenceDisabledException):
+        bloom.save()
 
 @patch('os.path.exists')
 def test_load(exists_mock):

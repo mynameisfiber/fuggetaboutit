@@ -6,11 +6,12 @@ import numpy as np
 import math
 import mmh3
 
+from .exceptions import PersistenceDisabledException
 
 
 class CountingBloomFilter(object):
     _ENTRIES_PER_8BYTE = 1
-    def __init__(self, capacity, data_path, error=0.005, id=None):
+    def __init__(self, capacity, data_path=None, error=0.005, id=None):
         self.capacity = capacity
         self.error = error
         self.data_path = data_path
@@ -18,12 +19,16 @@ class CountingBloomFilter(object):
         self.num_bytes = int(-capacity * math.log(error) / math.log(2)**2) + 1
         self.num_hashes = int(self.num_bytes / capacity * math.log(2)) + 1
         
-        self.bloom_filename = os.path.join(data_path, 'bloom.npy')
-        self.meta_filename = os.path.join(data_path, 'meta.json')
+        if data_path:
+            self.bloom_filename = os.path.join(data_path, 'bloom.npy')
+            self.meta_filename = os.path.join(data_path, 'meta.json')
+        else:
+            self.bloom_filename = None
+            self.meta_filename = None
         
         self.id = id
 
-        if os.path.exists(self.bloom_filename):
+        if self.bloom_filename and os.path.exists(self.bloom_filename):
             self.data = np.load(self.bloom_filename)
             self.num_non_zero = np.count_nonzero(self.data)
         else:
@@ -97,7 +102,13 @@ class CountingBloomFilter(object):
         """
         return -self.num_bytes * math.log(1 - self.num_non_zero / float(self.num_bytes)) / float(self.num_hashes) 
 
+    def can_persist(self):
+        return self.data_path is not None
+
     def flush_data(self):
+        if not self.can_persist():
+            raise PersistenceDisabledException("You cannot flush data without having data_path set.")
+
         np.save(self.bloom_filename, self.data)
 
     def get_meta(self):
@@ -108,6 +119,9 @@ class CountingBloomFilter(object):
         }
 
     def save(self):
+        if not self.can_persist():
+            raise PersistenceDisabledException("You cannot save without having data_path set.")
+
         logging.info("Saving counting bloom to %s" % self.data_path)
         if not os.path.exists(self.data_path):
             logging.info("Bloom path doesn't exist, creating:  %s" % self.data_path)
