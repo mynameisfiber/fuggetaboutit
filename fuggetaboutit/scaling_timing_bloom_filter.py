@@ -7,7 +7,8 @@ import operator
 import os
 from shutil import rmtree
 
-from timing_bloom_filter import TimingBloomFilter, _ENTRIES_PER_8BYTE
+from .tickers import NoOpTicker
+from .timing_bloom_filter import TimingBloomFilter, _ENTRIES_PER_8BYTE
 
 class ScalingTimingBloomFilter(object):
     """
@@ -52,7 +53,7 @@ class ScalingTimingBloomFilter(object):
     :param ioloop: an instance of an IOLoop to attatch the periodic decay operation to
     :type ioloop: tornado.ioloop.IOLoop or None
     """
-    def __init__(self, capacity, decay_time, ticker, data_path, error=0.005,
+    def __init__(self, capacity, decay_time, ticker=None, data_path=None, error=0.005,
             error_tightening_ratio=0.5, growth_factor=2, min_fill_factor=0.2,
             max_fill_factor=0.8, insert_tail=True, blooms=None):
         assert (0 or min_fill_factor) < max_fill_factor <= 1, "max_fill_factor must be min_fill_factor<max_fill_factor<=1"
@@ -82,7 +83,10 @@ class ScalingTimingBloomFilter(object):
 
         self.insert_tail = insert_tail
 
-        self.ticker = ticker
+        if ticker is None:
+            self.ticker = NoOpTicker()
+        else:
+            self.ticker = ticker
 
         self._setup_decay()
 
