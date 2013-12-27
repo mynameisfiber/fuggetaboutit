@@ -1,11 +1,8 @@
-#!/usr/bin/env python
 import logging 
-
-from counting_bloom_filter import CountingBloomFilter
-import struct
 import time
 
-import _optimizations
+from .counting_bloom_filter import CountingBloomFilter
+from . import _optimizations
 
 _ENTRIES_PER_8BYTE = 2 if _optimizations is not None else 1
 
@@ -13,15 +10,19 @@ _ENTRIES_PER_8BYTE = 2 if _optimizations is not None else 1
 class TimingBloomFilter(CountingBloomFilter):
     _ENTRIES_PER_8BYTE = _ENTRIES_PER_8BYTE
 
-    def __init__(self, decay_time, *args, **kwargs):
+    def __init__(self, decay_time, disable_optimizations=False, *args, **kwargs):
         self.decay_time = decay_time
+        if disable_optimizations:
+            self._optimize = False
+            self._ENTRIES_PER_8BYTE = 1
+        else:
+            self._optimize = _optimizations is not None
 
         super(TimingBloomFilter, self).__init__(*args, **kwargs)
 
         self.ring_size = (1 << (8 / self._ENTRIES_PER_8BYTE)) - 1
         self.dN = self.ring_size / 2
         self.seconds_per_tick = self.decay_time / float(self.dN)
-        self._optimize = _optimizations is not None
 
 
     def get_tick(self, timestamp=None):
@@ -41,35 +42,37 @@ class TimingBloomFilter(CountingBloomFilter):
             return lambda x : x != 0 and not tick_max < x <= tick_min
 
     def add(self, key, timestamp=None):
-        tick = self._tick(timestamp)
+        tick = self.get_tick(timestamp)
         if timestamp:
             if timestamp < time.time() - self.decay_time:
-                return self
+                return
         if self._optimize and self.data.flags['C_CONTIGUOUS']:
-            self.num_non_zero += _optimizations.timing_bloom_add(self.data, self._indexes(key), tick)
+            self.num_non_zero += _optimizations.timing_bloom_add(self.data, self.get_indexes(key), tick)
         else:
-            for index in self._indexes(key):
+            for index in self.get_indexes(key):
                 self.num_non_zero += (self.data[index] == 0)
                 self.data[index] = tick
-        return self
 
     def contains(self, key):
         """
         Check if the current bloom contains the key `key`
         """
         if self._optimize and self.data.flags['C_CONTIGUOUS']:
-            tick_min, tick_max = self._tick_range()
-            return bool(_optimizations.timing_bloom_contains(self.data, self._indexes(key), tick_min, tick_max))
+            tick_min, tick_max = self.get_tick_range()
+            return bool(_optimizations.timing_bloom_contains(self.data, self.get_indexes(key), tick_min, tick_max))
         else:
-            test_interval = self._test_interval()
-            return all(test_interval(self.data[index]) for index in self._indexes(key))
+            test_interval = self.get_interval_test()
+            return all(test_interval(self.data[index]) for index in self.get_indexes(key))
 
     def decay(self):
         if self._optimize and self.data.flags['C_CONTIGUOUS']:
-            tick_min, tick_max = self._tick_range()
+            logging.info("Starting optimized decay")
+            tick_min, tick_max = self.get_tick_range()
             self.num_non_zero = _optimizations.timing_bloom_decay(self.data, tick_min, tick_max)
+            logging.info("Optimized decay finished")
         else:
-            test_interval = self._test_interval()
+            logging.info("Starting un-optimized decay")
+            test_interval = self.get_interval_test()
             self.num_non_zero = 0
             for i in xrange(self.num_bytes):
                 value = self.data[i]
@@ -78,10 +81,12 @@ class TimingBloomFilter(CountingBloomFilter):
                         self.data[i] = 0
                     else:
                         self.num_non_zero += 1
+            logging.info("Un-optimized decay finished")
 
     def get_meta(self):
         meta = super(TimingBloomFilter, self).get_meta()
         meta['decay_time'] = self.decay_time
+        meta['disable_optimizations'] = not self._optimize
         return meta
 
     def remove(self, *args, **kwargs):

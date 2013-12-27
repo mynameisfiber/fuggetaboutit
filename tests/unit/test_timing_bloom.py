@@ -2,6 +2,7 @@ from copy import copy
 
 from mock import MagicMock, patch, sentinel
 import numpy as np
+import pytest
 
 from fuggetaboutit.timing_bloom_filter import TimingBloomFilter
 
@@ -11,6 +12,7 @@ BLOOM_DEFAULTS = {
     'data_path': '/some/path/',
     'id': 1,
     'decay_time': 86400, # 24 hours
+    'disable_optimizations': False,
 }
 
 
@@ -214,3 +216,234 @@ def test_get_interval_test_min_gt_max():
     assert not test(5)
     assert not test(12)
     assert test(13)
+
+
+def test_add_expired():
+    # Get a bloom
+    bloom = get_bloom()
+
+    # Get a timestamp from way in the past
+    timestamp = 652147200 # 9/1/1990
+
+    # Add an entry with the timestamp
+    key = 'test'
+    bloom.add(key, timestamp)
+
+    # Check that the bloom is still empty
+    assert_empty_bloom(bloom)
+
+
+@patch('time.time')
+def test_add_with_optimizations_and_current_time(time_mock):
+    # Get a bloom
+    bloom = get_bloom()
+
+    # Setup mocks and test data
+    time_mock.return_value = 1388159391.882157
+    key = 'test'
+
+    # Add the key
+    bloom.add(key)
+
+    # Check that the bloom is in the expected state
+    expected_num_non_zero = 12
+    assert expected_num_non_zero == bloom.num_non_zero
+    assert expected_num_non_zero == np.count_nonzero(bloom.data)
+
+
+@patch('time.time')
+def test_add_with_optimizations_and_timestamp(time_mock):
+    # Get a bloom
+    bloom = get_bloom()
+
+    # Setup mocks and test data
+    time_mock.return_value = 1388159391.882157
+    timestamp = time_mock.return_value - 12343  # Makes timestamp fall in previous tick
+    key = 'test'
+
+    # Add the key
+    bloom.add(key, timestamp)
+
+    # Check that the bloom is in the expected state
+    expected_num_non_zero = 12
+    assert expected_num_non_zero == bloom.num_non_zero
+    assert expected_num_non_zero == np.count_nonzero(bloom.data)
+
+
+@patch('time.time')
+def test_add_without_optimizations_and_current_time(time_mock):
+    # Get a bloom
+    bloom = get_bloom(disable_optimizations=True)
+    assert not bloom._optimize
+
+    # Setup mocks and test data
+    time_mock.return_value = 1388159391.882157
+    key = 'test'
+
+    # Add the key
+    bloom.add(key)
+
+    # Check that the bloom is in the expected state
+    expected_num_non_zero = 12
+    assert expected_num_non_zero == bloom.num_non_zero
+    assert expected_num_non_zero == np.count_nonzero(bloom.data)
+
+
+@patch('time.time')
+def test_add_without_optimizations_and_timestamp(time_mock):
+    # Get a bloom
+    bloom = get_bloom(disable_optimizations=True)
+    assert not bloom._optimize
+
+    # Setup mocks and test data
+    time_mock.return_value = 1388159391.882157
+    timestamp = time_mock.return_value - 12343  # Makes timestamp fall in previous tick
+    key = 'test'
+
+    # Add the key
+    bloom.add(key, timestamp)
+
+    # Check that the bloom is in the expected state
+    expected_num_non_zero = 12
+    assert expected_num_non_zero == bloom.num_non_zero
+    assert expected_num_non_zero == np.count_nonzero(bloom.data)
+
+
+@patch('time.time')
+def test_contains_with_optimization(time_mock):
+    # Get a bloom
+    bloom = get_bloom()
+
+    # Setup mocks and test data
+    time_mock.return_value = 1388159391.882157
+    valid_keys = ['test', 'foo', 'fizz']
+    invalid_keys = ['bar', 'buzz']
+
+    # Add a few keys
+    for key in valid_keys:
+        bloom.add(key)
+
+    # Check that contains returns the expected results
+    for key in valid_keys:
+        assert bloom.contains(key)
+
+    for key in invalid_keys:
+        assert not bloom.contains(key)
+
+
+@patch('time.time')
+def test_contains_without_optimization(time_mock):
+    # Get a bloom
+    bloom = get_bloom(disable_optimizations=True)
+    assert not bloom._optimize
+
+    # Setup mocks and test data
+    time_mock.return_value = 1388159391.882157
+    valid_keys = ['test', 'foo', 'fizz']
+    invalid_keys = ['bar', 'buzz']
+
+    # Add a few keys
+    for key in valid_keys:
+        bloom.add(key)
+
+    # Check that contains returns the expected results
+    for key in valid_keys:
+        assert bloom.contains(key)
+
+    for key in invalid_keys:
+        assert not bloom.contains(key)
+
+
+@patch('time.time')
+def test_decay_with_optimizations(time_mock):
+    # Get a bloom
+    bloom = get_bloom()
+
+    # Setup mocks and test data
+    time_mock.return_value = 1388159391.882157
+    key = 'test'
+
+    # Add the key
+    bloom.add(key)
+
+    # Check that the bloom is in the expected state
+    expected_num_non_zero = 12
+    assert expected_num_non_zero == bloom.num_non_zero
+    assert expected_num_non_zero == np.count_nonzero(bloom.data)
+
+    # Perform initial decay which should be a no-op
+    bloom.decay()
+    
+    # Check that the bloom is in the expected state
+    expected_num_non_zero = 12
+    assert expected_num_non_zero == bloom.num_non_zero
+    assert expected_num_non_zero == np.count_nonzero(bloom.data)
+
+    # Move time forward and decay until bloom is empty
+    for n in range(1, 8):
+        time_mock.return_value -= 12343
+        bloom.decay()
+
+    assert_empty_bloom(bloom)
+
+
+@patch('time.time')
+def test_decay_without_optimizations(time_mock):
+    # Get a bloom
+    bloom = get_bloom(disable_optimizations=True)
+    assert not bloom._optimize
+
+    # Setup mocks and test data
+    time_mock.return_value = 1388159391.882157
+    key = 'test'
+
+    # Add the key
+    bloom.add(key)
+
+    # Check that the bloom is in the expected state
+    expected_num_non_zero = 12
+    assert expected_num_non_zero == bloom.num_non_zero
+    assert expected_num_non_zero == np.count_nonzero(bloom.data)
+
+    # Perform initial decay which should be a no-op
+    bloom.decay()
+    
+    # Check that the bloom is in the expected state
+    expected_num_non_zero = 12
+    assert expected_num_non_zero == bloom.num_non_zero
+    assert expected_num_non_zero == np.count_nonzero(bloom.data)
+
+    # Move time forward and decay until bloom is empty
+    for n in range(1, 8):
+        time_mock.return_value -= 12343
+        bloom.decay()
+
+    assert_empty_bloom(bloom)
+
+
+def test_get_meta():
+    # Get a bloom
+    bloom = get_bloom()
+
+    # Make sure the meta data gets returned as expected
+    expected_meta = copy(BLOOM_DEFAULTS)
+    del expected_meta['data_path']
+    assert expected_meta == bloom.get_meta()
+
+
+def test_remove():
+    # Get a bloom
+    bloom = get_bloom()
+
+    # Call remove
+    with pytest.raises(NotImplementedError):
+        bloom.remove('test')
+
+
+def test_remove_all():
+    # Get a bloom
+    bloom = get_bloom()
+
+    # Call remove_all
+    with pytest.raises(NotImplementedError):
+        bloom.remove_all('test')
