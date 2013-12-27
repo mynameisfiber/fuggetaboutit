@@ -3,3 +3,5 @@
 build/
 dist/
 fuggetaboutit.egg-info/
+.coverage
+_optimizations.so
