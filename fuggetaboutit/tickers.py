@@ -45,7 +45,7 @@ class TornadoTicker(object):
         self.callback = callback
         self.interval = interval
 
-        self._callback_timer = tornado.ioloop.PeriodicCallback(callback, interval, self._io_loop)
+        self._callback_timer = tornado.ioloop.PeriodicCallback(callback, interval * 1000, self._io_loop)
 
     def start(self):
         if not self._callback_timer:

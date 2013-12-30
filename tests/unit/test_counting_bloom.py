@@ -8,6 +8,8 @@ import pytest
 from fuggetaboutit.counting_bloom_filter import CountingBloomFilter
 from fuggetaboutit.exceptions import PersistenceDisabledException
 
+from ..utils import assert_bloom_values
+
 
 BLOOM_DEFAULTS = {
     'capacity': 1000,
@@ -50,20 +52,16 @@ def test_init_no_bloom_data():
     )
 
     # Make sure the bloom is setup as expected
-    assert capacity == bloom.capacity
-    assert error == bloom.error
-    assert data_path == bloom.data_path
-    assert id == bloom.id
-
-    expected_num_bytes = 12935
-    assert expected_num_bytes == bloom.num_bytes
-    expected_num_hashes = 9
-    assert expected_num_hashes == bloom.num_hashes
-
-    expected_bloom_filename = '/does/not/exist/bloom.npy'
-    assert expected_bloom_filename == bloom.bloom_filename
-    expected_meta_filename = '/does/not/exist/meta.json'
-    assert expected_meta_filename == bloom.meta_filename
+    assert_bloom_values(bloom, {
+        'capacity': capacity,
+        'error': error,
+        'data_path': data_path,
+        'id': id,
+        'num_bytes': 12935,
+        'num_hashes': 9,
+        'bloom_filename': '/does/not/exist/bloom.npy',
+        'meta_filename': '/does/not/exist/meta.json',
+    })
 
     assert_empty_bloom(bloom)
 
@@ -83,20 +81,16 @@ def test_init_no_data_path():
     )
 
     # Make sure the bloom is setup as expected
-    assert capacity == bloom.capacity
-    assert error == bloom.error
-    assert data_path == bloom.data_path
-    assert id == bloom.id
-
-    expected_num_bytes = 12935
-    assert expected_num_bytes == bloom.num_bytes
-    expected_num_hashes = 9
-    assert expected_num_hashes == bloom.num_hashes
-
-    expected_bloom_filename = None
-    assert expected_bloom_filename == bloom.bloom_filename
-    expected_meta_filename = None
-    assert expected_meta_filename == bloom.meta_filename
+    assert_bloom_values(bloom, {
+        'capacity': capacity,
+        'error': error,
+        'data_path': data_path,
+        'id': id,
+        'num_bytes': 12935,
+        'num_hashes': 9,
+        'bloom_filename': None,
+        'meta_filename': None,
+    })
 
     assert_empty_bloom(bloom)
 
@@ -120,20 +114,16 @@ def test_init_with_bloom_data(exists_mock, load_mock):
     )
 
     # Check that the bloom is setup as expected
-    assert capacity == bloom.capacity
-    assert error == bloom.error
-    assert data_path == bloom.data_path
-    assert None == bloom.id
-
-    expected_num_bytes = 12935
-    assert expected_num_bytes == bloom.num_bytes
-    expected_num_hashes = 9
-    assert expected_num_hashes == bloom.num_hashes
-
-    expected_bloom_filename = '/does/not/exist/bloom.npy'
-    assert expected_bloom_filename == bloom.bloom_filename
-    expected_meta_filename = '/does/not/exist/meta.json'
-    assert expected_meta_filename == bloom.meta_filename
+    assert_bloom_values(bloom, {
+        'capacity': capacity,
+        'error': error,
+        'data_path': data_path,
+        'id': None,
+        'num_bytes': 12935,
+        'num_hashes': 9,
+        'bloom_filename': '/does/not/exist/bloom.npy',
+        'meta_filename': '/does/not/exist/meta.json',
+    })
 
     exists_mock.assert_called_once_with(bloom.bloom_filename)
     load_mock.assert_called_once_with(bloom.bloom_filename)

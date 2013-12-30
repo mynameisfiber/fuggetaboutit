@@ -6,6 +6,8 @@ import pytest
 
 from fuggetaboutit.timing_bloom_filter import TimingBloomFilter
 
+from ..utils import assert_bloom_values
+
 BLOOM_DEFAULTS = {
     'capacity': 1000,
     'error': 0.0002,
@@ -52,28 +54,20 @@ def test_init_no_bloom_data():
     )
 
     # Make sure the bloom is setup as expected
-    assert capacity == bloom.capacity
-    assert error == bloom.error
-    assert data_path == bloom.data_path
-    assert decay_time == bloom.decay_time
-    assert id == bloom.id
-
-    expected_num_bytes = 12935
-    assert expected_num_bytes == bloom.num_bytes
-    expected_num_hashes = 9
-    assert expected_num_hashes == bloom.num_hashes
-    expected_ring_size = 15
-    assert expected_ring_size == bloom.ring_size
-    expected_dN = 7
-    assert expected_dN == bloom.dN
-    expected_seconds_per_tick = 12342.857142857143
-    assert expected_seconds_per_tick == bloom.seconds_per_tick
-    assert bloom._optimize, "Optimizations are not applied, make sure C extension is installed properly"
-
-    expected_bloom_filename = '/does/not/exist/bloom.npy'
-    assert expected_bloom_filename == bloom.bloom_filename
-    expected_meta_filename = '/does/not/exist/meta.json'
-    assert expected_meta_filename == bloom.meta_filename
+    assert_bloom_values(bloom, {
+        'capacity': capacity,
+        'error': error,
+        'data_path': data_path,
+        'id': id,
+        'num_bytes': 12935,
+        'num_hashes': 9,
+        'ring_size': 15,
+        'dN': 7,
+        'seconds_per_tick': 12342.857142857143,
+        '_optimize': True,
+        'bloom_filename': '/does/not/exist/bloom.npy',
+        'meta_filename': '/does/not/exist/meta.json',
+    })
 
     assert_empty_bloom(bloom)
 
@@ -99,33 +93,24 @@ def test_init_with_bloom_data(exists_mock, load_mock):
     )
 
     # Check that the bloom is setup as expected
-    assert capacity == bloom.capacity
-    assert error == bloom.error
-    assert data_path == bloom.data_path
-    assert decay_time == bloom.decay_time
-    assert None == bloom.id
-
-    expected_num_bytes = 12935
-    assert expected_num_bytes == bloom.num_bytes
-    expected_num_hashes = 9
-    assert expected_num_hashes == bloom.num_hashes
-    expected_ring_size = 15
-    assert expected_ring_size == bloom.ring_size
-    expected_dN = 7
-    assert expected_dN == bloom.dN
-    expected_seconds_per_tick = 12342.857142857143
-    assert expected_seconds_per_tick == bloom.seconds_per_tick
-    assert bloom._optimize, "Optimizations are not applied, make sure C extension is installed properly"
-
-    expected_bloom_filename = '/does/not/exist/bloom.npy'
-    assert expected_bloom_filename == bloom.bloom_filename
-    expected_meta_filename = '/does/not/exist/meta.json'
-    assert expected_meta_filename == bloom.meta_filename
+    assert_bloom_values(bloom, {
+        'capacity': capacity,
+        'error': error,
+        'data_path': data_path,
+        'id': None,
+        'num_bytes': 12935,
+        'num_hashes': 9,
+        'ring_size': 15,
+        'dN': 7,
+        'seconds_per_tick': 12342.857142857143,
+        '_optimize': True,
+        'bloom_filename': '/does/not/exist/bloom.npy',
+        'meta_filename': '/does/not/exist/meta.json',
+        'data': sentinel.data,
+    })
 
     exists_mock.assert_called_once_with(bloom.bloom_filename)
     load_mock.assert_called_once_with(bloom.bloom_filename)
-    expected_bloom_data = sentinel.data
-    assert expected_bloom_data == bloom.data
 
 
 @patch('time.time')
