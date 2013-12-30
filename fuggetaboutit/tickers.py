@@ -29,6 +29,8 @@ class TornadoTicker(object):
         
         self._io_loop = io_loop or tornado.ioloop.IOLoop.current()
         self._callback_timer = None
+        self.callback = None
+        self.interval = None
 
         super(TornadoTicker, self).__init__()
 
