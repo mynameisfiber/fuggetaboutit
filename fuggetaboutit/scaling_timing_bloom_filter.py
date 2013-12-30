@@ -311,11 +311,12 @@ class ScalingTimingBloomFilter(object):
     def discover_blooms(cls, blooms_path):
         paths = []
         for bloom_path in os.listdir(blooms_path):
-            if not os.path.isdir(bloom_path):
+            full_path = os.path.join(blooms_path, bloom_path)
+            if not os.path.isdir(full_path):
                 continue
 
-            logging.debug("Found a sub-bloom at '%s'" % bloom_path)
-            paths.append(bloom_path)
+            logging.debug("Found a sub-bloom at '%s'" % full_path)
+            paths.append(full_path)
 
         return paths
 
