@@ -1,12 +1,17 @@
 import logging
 import os
 import json
+from shutil import rmtree
 
 import numpy as np
 import math
 import mmh3
 
 from .exceptions import PersistenceDisabledException
+
+
+BLOOM_FILENAME = 'bloom.npy'
+META_FILENAME = 'meta.json'
 
 
 class CountingBloomFilter(object):
@@ -20,11 +25,18 @@ class CountingBloomFilter(object):
         self.num_hashes = int(self.num_bytes / capacity * math.log(2)) + 1
         
         if data_path:
-            self.bloom_filename = os.path.join(data_path, 'bloom.npy')
-            self.meta_filename = os.path.join(data_path, 'meta.json')
+            self.data_path = os.path.normpath(self.data_path)
+            self.bloom_filename = os.path.join(self.data_path, BLOOM_FILENAME)
+            self.meta_filename = os.path.join(self.data_path, META_FILENAME)
+            self.tmp_path = self.data_path + '-tmp'
+            self.tmp_bloom_filename = os.path.join(self.tmp_path, BLOOM_FILENAME)
+            self.tmp_meta_filename = os.path.join(self.tmp_path, META_FILENAME)
         else:
             self.bloom_filename = None
             self.meta_filename = None
+            self.tmp_path = None
+            self.tmp_bloom_filename = None
+            self.tmp_meta_filename = None
         
         self.id = id
 
@@ -105,11 +117,11 @@ class CountingBloomFilter(object):
     def can_persist(self):
         return self.data_path is not None
 
-    def flush_data(self):
+    def flush_data(self, path=None):
         if not self.can_persist():
             raise PersistenceDisabledException("You cannot flush data without having data_path set.")
 
-        np.save(self.bloom_filename, self.data)
+        np.save(path or self.bloom_filename, self.data)
 
     def get_meta(self):
         return {
@@ -118,27 +130,39 @@ class CountingBloomFilter(object):
             'id': self.id,
         }
 
+    def prep_tmp_dir(self):
+        if os.path.exists(self.tmp_path):
+            rmtree(self.tmp_path)
+
+        os.makedirs(self.tmp_path)
+
+    def persist_to_tmp(self):
+        self.flush_data(self.tmp_bloom_filename)
+
+        meta = self.get_meta()
+        with open(self.tmp_meta_filename, 'w') as meta_file:
+            json.dump(meta, meta_file)
+
+    def move_tmp_to_real(self):
+        if os.path.exists(self.data_path):
+            rmtree(self.data_path)
+        os.rename(self.tmp_path, self.data_path)
+
     def save(self):
         if not self.can_persist():
             raise PersistenceDisabledException("You cannot save without having data_path set.")
 
-        logging.info("Saving counting bloom to %s" % self.data_path)
-        if not os.path.exists(self.data_path):
-            logging.info("Bloom path doesn't exist, creating:  %s" % self.data_path)
-            os.makedirs(self.data_path)
+        self.prep_tmp_dir()
+        self.persist_to_tmp()
+        self.move_tmp_to_real()
 
-        self.flush_data()
-        meta = self.get_meta()
-
-        with open(self.meta_filename, 'w') as meta_file:
-            json.dump(meta, meta_file)
 
     @classmethod
     def load(cls, data_path):
         logging.info("Loading counting bloom from %s" % data_path)
         kwargs = None
 
-        with open(os.path.join(data_path, 'meta.json'), 'r') as meta_file:
+        with open(os.path.join(data_path, META_FILENAME), 'r') as meta_file:
             kwargs = json.load(meta_file)
 
         kwargs['data_path'] = data_path

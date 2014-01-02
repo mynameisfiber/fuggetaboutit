@@ -40,7 +40,7 @@ def test_init_no_bloom_data():
     # Setup test data
     capacity = 1000
     error = 0.002
-    data_path = '/does/not/exist'
+    data_path = '/does/not/exist/'
     id = 5
 
     # Call init and get back a bloom
@@ -55,12 +55,15 @@ def test_init_no_bloom_data():
     assert_bloom_values(bloom, {
         'capacity': capacity,
         'error': error,
-        'data_path': data_path,
+        'data_path': '/does/not/exist',
         'id': id,
         'num_bytes': 12935,
         'num_hashes': 9,
         'bloom_filename': '/does/not/exist/bloom.npy',
         'meta_filename': '/does/not/exist/meta.json',
+        'tmp_path': '/does/not/exist-tmp',
+        'tmp_bloom_filename': '/does/not/exist-tmp/bloom.npy',
+        'tmp_meta_filename': '/does/not/exist-tmp/meta.json',
     })
 
     assert_empty_bloom(bloom)
@@ -90,6 +93,9 @@ def test_init_no_data_path():
         'num_hashes': 9,
         'bloom_filename': None,
         'meta_filename': None,
+        'tmp_path': None,
+        'tmp_bloom_filename': None,
+        'tmp_meta_filename': None,
     })
 
     assert_empty_bloom(bloom)
@@ -346,13 +352,28 @@ def test_flush_data(save_mock):
     save_mock.assert_called_once_with(bloom.bloom_filename, sentinel.data)
 
 
-def test_flush_data_without_data_path():
+def test_flush_data__without_data_path():
     # Get a bloom
     bloom = get_bloom(data_path=None)
 
     # Call flush
     with pytest.raises(PersistenceDisabledException):
         bloom.flush_data()
+
+
+@patch('numpy.save')
+def test_flush_data__with_path(save_mock):
+    # Get a bloom
+    bloom = get_bloom()
+    bloom.data = sentinel.data
+
+    # Call flush
+    path = '/test/path'
+    bloom.flush_data(path=path)
+
+    # Make sure numpy.save was called as expected
+    save_mock.assert_called_once_with(path, sentinel.data)
+
 
 def test_get_meta():
     # Get a bloom
@@ -364,62 +385,120 @@ def test_get_meta():
     assert expected_meta == bloom.get_meta()
 
 
+@patch('os.removedirs')
 @patch('os.makedirs')
 @patch('os.path.exists')
-def test_new_save(exists_mock, makedirs_mock):
-    # Setup the mocks
+def test_prep_tmp_dir__new(exists_mock, makedirs_mock, removedirs_mock):
+    # Setup mocks
     exists_mock.return_value = False
-    save_target_mock = mock_open()
 
-    # Get a blooom
+    # Get a bloom
     bloom = get_bloom()
 
-    # Mock out the flush call
-    bloom.flush_data = MagicMock(bloom.flush_data)
+    # Call prep_tmp_dir
+    bloom.prep_tmp_dir()
 
-    # Call save
-    with patch('__builtin__.open', save_target_mock, create=True):
-        bloom.save()
-
-    # Make sure the directory for the bloom got created
-    exists_mock.assert_called_with(bloom.data_path)
-    makedirs_mock.assert_called_once_with(bloom.data_path)
-
-    # Make sure the bloom got flushed
-    bloom.flush_data.assert_called_once_with()
-
-    # Make sure the meta data got saved
-    save_target_mock.assert_called_once_with(bloom.meta_filename, 'w')
+    # Check that the mocks were called as expected
+    exists_mock.assert_any_call(bloom.tmp_path)
+    assert not removedirs_mock.called
+    makedirs_mock.assert_called_once_with(bloom.tmp_path)
 
 
+@patch('fuggetaboutit.counting_bloom_filter.rmtree')
 @patch('os.makedirs')
 @patch('os.path.exists')
-def test_existing_save(exists_mock, makedirs_mock):
-    # Setup the mocks
+def test_prep_tmp_dir__existing(exists_mock, makedirs_mock, rmtree_mock):
+    # Setup mocks
     exists_mock.side_effect = [False, True]
-    save_target_mock = mock_open()
 
-    # Get a blooom
+    # Get a bloom
     bloom = get_bloom()
 
-    # Mock out the flush call
+    # Call prep_tmp_dir
+    bloom.prep_tmp_dir()
+
+    # Check that the mocks were called as expected
+    exists_mock.assert_any_call(bloom.tmp_path)
+    rmtree_mock.assert_called_once_with(bloom.tmp_path)
+    makedirs_mock.assert_called_once_with(bloom.tmp_path)
+
+
+def test_persist_to_tmp():
+    # Get a bloom
+    bloom = get_bloom()
+
+    # Setup mocks
     bloom.flush_data = MagicMock(bloom.flush_data)
+    save_target_mock = mock_open()
+
+    # Call persist_to_tmp
+    with patch('__builtin__.open', save_target_mock, create=True):
+        bloom.persist_to_tmp()
+
+    # Make sure data got flushed
+    bloom.flush_data.assert_called_once_with(bloom.tmp_bloom_filename)
+
+    # Make sure the meta got saved as expected
+    save_target_mock.assert_called_once_with(bloom.tmp_meta_filename, 'w')
+
+
+@patch('fuggetaboutit.counting_bloom_filter.rmtree')
+@patch('os.path.exists')
+@patch('os.rename')
+def test_move_tmp_to_real__exists(rename_mock, exists_mock, rmtree_mock):
+    # Setup mocks
+    exists_mock.side_effect = [False, True]
+
+    # Get a bloom
+    bloom = get_bloom()
+
+    # Call move_tmp_to_real
+    bloom.move_tmp_to_real()
+
+    # Check that system calls were made as expected
+    exists_mock.assert_any_call(bloom.data_path)
+    rmtree_mock.assert_called_once_with(bloom.data_path)
+    rename_mock.assert_called_once_with(bloom.tmp_path, bloom.data_path)
+
+
+@patch('fuggetaboutit.counting_bloom_filter.rmtree')
+@patch('os.path.exists')
+@patch('os.rename')
+def test_move_tmp_to_real__does_not_exist(rename_mock, exists_mock, rmtree_mock):
+    # Setup mocks
+    exists_mock.return_value = False
+
+    # Get a bloom
+    bloom = get_bloom()
+
+    # Call move_tmp_to_real
+    bloom.move_tmp_to_real()
+
+    # Check that system calls were made as expected
+    exists_mock.assert_any_call(bloom.data_path)
+    assert not rmtree_mock.called
+    rename_mock.assert_called_once_with(bloom.tmp_path, bloom.data_path)
+
+
+def test_save():
+    # Get a bloom
+    bloom = get_bloom()
+
+    # Setup mocks
+    bloom.prep_tmp_dir = MagicMock(bloom.prep_tmp_dir)
+    bloom.persist_to_tmp = MagicMock(bloom.persist_to_tmp)
+    bloom.move_tmp_to_real = MagicMock(bloom.move_tmp_to_real)
 
     # Call save
-    with patch('__builtin__.open', save_target_mock, create=True):
-        bloom.save()
+    bloom.save()
 
-    # Make sure the directory for the bloom did not get created
-    exists_mock.assert_called_with(bloom.data_path)
-    assert 0 == makedirs_mock.call_count
+    # Check that calls were made as expected
+    bloom.prep_tmp_dir.assert_called_once_with()
+    bloom.persist_to_tmp()
+    bloom.move_tmp_to_real()
 
-    # Make sure the bloom got flushed
-    bloom.flush_data.assert_called_once_with()
 
-    # Make sure the meta data got saved
-    save_target_mock.assert_called_once_with(bloom.meta_filename, 'w')
-
-def test_savewithout_data_path():
+def test_save__without_data_path():
     # Get a bloom
     bloom = get_bloom(data_path=None)
 
