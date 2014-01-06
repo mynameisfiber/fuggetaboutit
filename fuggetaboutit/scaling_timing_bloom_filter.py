@@ -57,7 +57,7 @@ class ScalingTimingBloomFilter(object):
     def __init__(self, capacity, decay_time, ticker=None, data_path=None, error=0.005,
             error_tightening_ratio=0.5, growth_factor=2, min_fill_factor=0.2,
             max_fill_factor=0.8, insert_tail=True, blooms=None, disable_optimizations=False):
-        assert (0 or min_fill_factor) < max_fill_factor <= 1, "max_fill_factor must be min_fill_factor<max_fill_factor<=1"
+        assert (min_fill_factor or 0) < max_fill_factor <= 1, "max_fill_factor must be min_fill_factor<max_fill_factor<=1"
         assert min_fill_factor is None or 0 < min_fill_factor < max_fill_factor, "min_fill_factor must be None or 0<min_fill_factor<max_fill_factor"
         assert growth_factor is None or 0 < growth_factor, "growth_factor must be None or >0"
         assert 0 < error < 1, "error must be 0 < error < 1"
@@ -123,7 +123,7 @@ class ScalingTimingBloomFilter(object):
 
     def _add_new_bloom(self, bloom_id=None):
         bloom_id = bloom_id or self._get_next_id()
-        error = self.error_initial * self.error_tightening_ratio ** bloom_id
+        error = self.error_initial * (self.error_tightening_ratio ** bloom_id)
         capacity = self.get_capacity_for_id(bloom_id)
 
         bloom = TimingBloomFilter(

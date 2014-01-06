@@ -44,7 +44,7 @@ class CountingBloomFilter(object):
             self.data = np.load(self.bloom_filename)
             self.num_non_zero = np.count_nonzero(self.data)
         else:
-            size = int(math.ceil(self.num_bytes / self._ENTRIES_PER_8BYTE))
+            size = int(math.ceil(self.num_bytes / float(self._ENTRIES_PER_8BYTE)))
             self.data = np.zeros((size,), dtype=np.uint8, order='C')
             self.num_non_zero = 0
 
