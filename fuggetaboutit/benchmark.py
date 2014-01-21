@@ -63,7 +63,7 @@ def benchmark():
     d = 10
     stbf = ScalingTimingBloomFilter(N, decay_time=d)
     sstbf = ScalingTimingBloomFilter(N, decay_time=d)
-    tbf  = TimingBloomFilter(d, capacity=N)
+    tbf  = TimingBloomFilter(N, decay_time=d)
 
     # Add a bunch of values so that this bloom has to scale up
     for i in xrange(int(N*1.5)):

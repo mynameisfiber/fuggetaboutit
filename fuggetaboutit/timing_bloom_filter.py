@@ -10,7 +10,7 @@ _ENTRIES_PER_8BYTE = 2 if _optimizations is not None else 1
 class TimingBloomFilter(CountingBloomFilter):
     _ENTRIES_PER_8BYTE = _ENTRIES_PER_8BYTE
 
-    def __init__(self, decay_time, disable_optimizations=False, *args, **kwargs):
+    def __init__(self, capacity, decay_time, disable_optimizations=False, *args, **kwargs):
         self.decay_time = decay_time
         if disable_optimizations:
             self._optimize = False
@@ -18,7 +18,7 @@ class TimingBloomFilter(CountingBloomFilter):
         else:
             self._optimize = _optimizations is not None
 
-        super(TimingBloomFilter, self).__init__(*args, **kwargs)
+        super(TimingBloomFilter, self).__init__(capacity, *args, **kwargs)
 
         self.ring_size = (1 << (8 / self._ENTRIES_PER_8BYTE)) - 1
         self.dN = self.ring_size / 2
