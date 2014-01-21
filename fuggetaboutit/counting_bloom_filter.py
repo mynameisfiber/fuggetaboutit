@@ -114,11 +114,8 @@ class CountingBloomFilter(object):
         """
         return -self.num_bytes * math.log(1 - self.num_non_zero / float(self.num_bytes)) / float(self.num_hashes) 
 
-    def can_persist(self):
-        return self.data_path is not None
-
     def flush_data(self, path=None):
-        if not self.can_persist():
+        if not (path or self.data_path):
             raise PersistenceDisabledException("You cannot flush data without having data_path set.")
 
         np.save(path or self.bloom_filename, self.data)
@@ -149,7 +146,7 @@ class CountingBloomFilter(object):
         os.rename(self.tmp_path, self.data_path)
 
     def save(self):
-        if not self.can_persist():
+        if not self.data_path:
             raise PersistenceDisabledException("You cannot save without having data_path set.")
 
         self.prep_tmp_dir()
