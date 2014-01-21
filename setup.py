@@ -13,7 +13,6 @@ _optimizations = Extension(
     'fuggetaboutit._optimizations',
     sources = ['fuggetaboutit/_optimizations.c', ],
     extra_compile_args = ["-O2", "-std=c99", "-Wall", "-g"],
-    extra_link_args = ["-lc"],
 )
 
 setup(
