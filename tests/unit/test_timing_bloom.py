@@ -65,9 +65,12 @@ def test_init_no_bloom_data():
         'dN': 7,
         'seconds_per_tick': 12342.857142857143,
         '_optimize': True,
-        'bloom_filename': '/does/not/exist/bloom.npy',
-        'meta_filename': '/does/not/exist/meta.json',
     })
+
+    test_dp, test_mf, test_bf = bloom._get_paths(None)
+    assert test_dp == '/does/not/exist'
+    assert test_mf == '/does/not/exist/meta.json'
+    assert test_bf == '/does/not/exist/bloom.npy'
 
     assert_empty_bloom(bloom)
 
@@ -104,13 +107,16 @@ def test_init_with_bloom_data(exists_mock, load_mock):
         'dN': 7,
         'seconds_per_tick': 12342.857142857143,
         '_optimize': True,
-        'bloom_filename': '/does/not/exist/bloom.npy',
-        'meta_filename': '/does/not/exist/meta.json',
         'data': sentinel.data,
     })
 
-    exists_mock.assert_called_once_with(bloom.bloom_filename)
-    load_mock.assert_called_once_with(bloom.bloom_filename)
+    test_dp, test_mf, test_bf = bloom._get_paths(None)
+    assert test_dp == '/does/not/exist'
+    assert test_mf == '/does/not/exist/meta.json'
+    assert test_bf == '/does/not/exist/bloom.npy'
+
+    exists_mock.assert_called_once_with(test_bf)
+    load_mock.assert_called_once_with(test_bf)
 
 
 @patch('time.time')

@@ -1,11 +1,14 @@
 import logging 
 import time
+import json
+import os
 
 from .counting_bloom_filter import CountingBloomFilter
 from . import _optimizations
 
 _ENTRIES_PER_8BYTE = 2 if _optimizations is not None else 1
 
+META_FILENAME = 'meta.json'
 
 class TimingBloomFilter(CountingBloomFilter):
     _ENTRIES_PER_8BYTE = _ENTRIES_PER_8BYTE
@@ -94,3 +97,21 @@ class TimingBloomFilter(CountingBloomFilter):
 
     def remove_all(self, *args, **kwargs):
         raise NotImplementedError
+
+    @classmethod
+    def load(cls, data_path):
+        logging.info("Loading timing bloom from %s" % data_path)
+        kwargs = None
+
+        with open(os.path.join(data_path, META_FILENAME), 'r') as meta_file:
+            kwargs = json.load(meta_file)
+
+        kwargs['data_path'] = data_path
+
+        capacity = kwargs['capacity']
+        del kwargs['capacity']
+
+        decay_time = kwargs['decay_time']
+        del kwargs['decay_time']
+
+        return cls(capacity, decay_time, **kwargs)

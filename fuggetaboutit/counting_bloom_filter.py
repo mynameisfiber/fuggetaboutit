@@ -1,7 +1,7 @@
 import logging
 import os
 import json
-from shutil import rmtree
+import shutil
 
 import numpy as np
 import math
@@ -13,6 +13,11 @@ from .exceptions import PersistenceDisabledException
 BLOOM_FILENAME = 'bloom.npy'
 META_FILENAME = 'meta.json'
 
+def remove_recursive(path):
+    if os.path.isdir(path):
+        shutil.rmtree(path)
+    elif os.path.exists(path):
+        os.remove(path)
 
 class CountingBloomFilter(object):
     _ENTRIES_PER_8BYTE = 1
@@ -20,28 +25,19 @@ class CountingBloomFilter(object):
         self.capacity = capacity
         self.error = error
         self.data_path = data_path
+        self.id = id
 
         self.num_bytes = int(-capacity * math.log(error) / math.log(2)**2) + 1
         self.num_hashes = int(self.num_bytes / capacity * math.log(2)) + 1
-        
-        if data_path:
-            self.data_path = os.path.normpath(self.data_path)
-            self.bloom_filename = os.path.join(self.data_path, BLOOM_FILENAME)
-            self.meta_filename = os.path.join(self.data_path, META_FILENAME)
-            self.tmp_path = self.data_path + '-tmp'
-            self.tmp_bloom_filename = os.path.join(self.tmp_path, BLOOM_FILENAME)
-            self.tmp_meta_filename = os.path.join(self.tmp_path, META_FILENAME)
-        else:
-            self.bloom_filename = None
-            self.meta_filename = None
-            self.tmp_path = None
-            self.tmp_bloom_filename = None
-            self.tmp_meta_filename = None
-        
-        self.id = id
 
-        if self.bloom_filename and os.path.exists(self.bloom_filename):
-            self.data = np.load(self.bloom_filename)
+        bloom_filename = None
+
+        if data_path:
+            data_path = os.path.normpath(data_path)
+            bloom_filename = os.path.join(data_path, BLOOM_FILENAME)
+
+        if bloom_filename and os.path.exists(bloom_filename):
+            self.data = np.load(bloom_filename)
             self.num_non_zero = np.count_nonzero(self.data)
         else:
             size = int(math.ceil(self.num_bytes / float(self._ENTRIES_PER_8BYTE)))
@@ -114,12 +110,6 @@ class CountingBloomFilter(object):
         """
         return -self.num_bytes * math.log(1 - self.num_non_zero / float(self.num_bytes)) / float(self.num_hashes) 
 
-    def flush_data(self, path=None):
-        if not (path or self.data_path):
-            raise PersistenceDisabledException("You cannot flush data without having data_path set.")
-
-        np.save(path or self.bloom_filename, self.data)
-
     def get_meta(self):
         return {
             'capacity': self.capacity,
@@ -127,31 +117,43 @@ class CountingBloomFilter(object):
             'id': self.id,
         }
 
-    def prep_tmp_dir(self):
-        if os.path.exists(self.tmp_path):
-            rmtree(self.tmp_path)
+    def flush_data(self, data_path=None):
+        _, _, bloom_path = self._get_paths(data_path)
+        tmp_bloom_path = bloom_path + ".tmp"
 
-        os.makedirs(self.tmp_path)
+        self._save_data(tmp_bloom_path)
+        os.rename(tmp_bloom_path, bloom_path)
 
-    def persist_to_tmp(self):
-        self.flush_data(self.tmp_bloom_filename)
+    def save(self, data_path=None):
+        data_path, meta_path, bloom_path = self._get_paths(data_path)
+        tmp_data_path, tmp_meta_path, tmp_bloom_path = self._get_paths(data_path + '-tmp')
 
-        meta = self.get_meta()
-        with open(self.tmp_meta_filename, 'w') as meta_file:
-            json.dump(meta, meta_file)
+        remove_recursive(tmp_data_path)
+        os.makedirs(tmp_data_path)
 
-    def move_tmp_to_real(self):
-        if os.path.exists(self.data_path):
-            rmtree(self.data_path)
-        os.rename(self.tmp_path, self.data_path)
+        self._save_meta(tmp_meta_path)
+        self._save_data(tmp_bloom_path)
 
-    def save(self):
-        if not self.data_path:
+        remove_recursive(data_path)
+        os.rename(tmp_data_path, data_path)
+
+    def _get_paths(self, data_path):
+        if not (data_path or self.data_path):
             raise PersistenceDisabledException("You cannot save without having data_path set.")
+        if not data_path:
+            data_path = self.data_path
 
-        self.prep_tmp_dir()
-        self.persist_to_tmp()
-        self.move_tmp_to_real()
+        data_path = os.path.normpath(data_path)
+        meta_path = os.path.join(data_path, META_FILENAME)
+        bloom_path = os.path.join(data_path, BLOOM_FILENAME)
+        return data_path, meta_path, bloom_path
+
+    def _save_meta(self, filename):
+        with open(filename, 'w') as meta_file:
+            json.dump(self.get_meta(), meta_file)
+
+    def _save_data(self, filename):
+        np.save(filename, self.data)
 
 
     @classmethod
@@ -164,7 +166,10 @@ class CountingBloomFilter(object):
 
         kwargs['data_path'] = data_path
 
-        return cls(**kwargs)
+        capacity = kwargs['capacity']
+        del kwargs['capacity']
+
+        return cls(capacity, **kwargs)
 
 
     def __contains__(self, key):
@@ -180,5 +185,3 @@ class CountingBloomFilter(object):
 
     def __len__(self):
         return self.get_size()
-
-
