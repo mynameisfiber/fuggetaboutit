@@ -16,12 +16,11 @@ class ScalingTimingBloomFilter(object):
     A bloom filter that will decay old values and scale up capacity as
     needed.  This bloom filter will automatically decay values such that an
     item added will be removed from the bloom after ``decay_time`` seconds.
-    The underlying bloom has initial capacity ``capacity`` and maximum error
-    ``error``.  In addition, the bloom will automatically scale using
-    Almeida's method from "Scalable Bloom Filters" using an error tightening
-    ratio and growth factor given by ``error_tightening_ratio`` and
-    ``growth_factor``.  A bloom filter will be scaled up when approximatly
-    ``max_fill_factor`` percent of the capacity of the bloom filter are in use.
+    The underlying bloom has initial ``capacity`` and maximum ``error``.
+    In addition, the bloom will automatically scale using Almeida's method
+    from "Scalable Bloom Filters" using ``error_tightening_ratio`` and
+    ``growth_factor``.  A bloom filter will be scaled up when approximately
+    ``max_fill_factor`` of the capacity of the bloom filter is in use.
     Conversely, the bloom will be scaled down if there is one bloom left and it
     has a fill percentage less than ``min_fill_factor``.  Together, these two
     fill factor conditionals attempt to keep the scaling bloom at the right
@@ -44,14 +43,14 @@ class ScalingTimingBloomFilter(object):
     
     :param max_fill_factor: maximum fill factor of a bloom to be considered full
     :type max_fill_factor: min_fill_factor < float < 1
-
-    :param max_fill_factor: minimum fill factor of a bloom to be considered active
-    :type max_fill_factor: 0 < float < max_fill_factor or None
+    
+    :param min_fill_factor: minimum fill factor of a bloom to be considered active
+    :type min_fill_factor: 0 < float < max_fill_factor or None
     
     :param insert_tail: Whether to insert in order to optimize compactness or convergence
     :type insert_tail: True (convergence) or False (compactness)
-
-    :param ioloop: an instance of an IOLoop to attatch the periodic decay operation to
+    
+    :param ioloop: an instance of an IOLoop to attach the periodic decay operation to
     :type ioloop: tornado.ioloop.IOLoop or None
     """
     def __init__(self, capacity, decay_time, ticker=None, data_path=None, error=0.005,
