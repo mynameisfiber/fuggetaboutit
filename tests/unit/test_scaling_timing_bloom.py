@@ -8,6 +8,7 @@ from fuggetaboutit.exceptions import PersistenceDisabledException
 from fuggetaboutit.scaling_timing_bloom_filter import ScalingTimingBloomFilter
 from fuggetaboutit.timing_bloom_filter import TimingBloomFilter
 from fuggetaboutit.tickers import NoOpTicker
+from fuggetaboutit.scaling_timing_bloom_filter import _get_paths
 
 from ..utils import assert_bloom_values
 
@@ -73,8 +74,6 @@ def test_basic_init(timing_bloom_mock):
         'min_fill_factor': 0.2,
         'insert_tail': True,
         'data_path': None,
-        'meta_filename': None,
-        'blooms_path': None,
         'seconds_per_tick': bloom.blooms[0].seconds_per_tick,
         'disable_optimizations': False,
     })
@@ -87,7 +86,6 @@ def test_basic_init(timing_bloom_mock):
         decay_time=decay_time,
         error=0.0001,
         id=0,
-        data_path=None,
         disable_optimizations=False
     )
 
@@ -122,8 +120,6 @@ def test_init_without_optimizations(timing_bloom_mock):
         'min_fill_factor': 0.2,
         'insert_tail': True,
         'data_path': None,
-        'meta_filename': None,
-        'blooms_path': None,
         'seconds_per_tick': bloom.blooms[0].seconds_per_tick,
         'disable_optimizations': disable_optimizations,
     })
@@ -136,7 +132,6 @@ def test_init_without_optimizations(timing_bloom_mock):
         decay_time=decay_time,
         error=0.0001,
         id=0,
-        data_path=None,
         disable_optimizations=disable_optimizations,
     )
 
@@ -171,8 +166,6 @@ def test_init_without_growth_factor(timing_bloom_mock):
         'min_fill_factor': 0.2,
         'insert_tail': True,
         'data_path': None,
-        'meta_filename': None,
-        'blooms_path': None,
         'seconds_per_tick': bloom.blooms[0].seconds_per_tick,
         'disable_optimizations': False,
     })
@@ -185,7 +178,6 @@ def test_init_without_growth_factor(timing_bloom_mock):
         decay_time=decay_time,
         error=0.0001,
         id=0,
-        data_path=None,
         disable_optimizations=False,
     )
 
@@ -241,11 +233,13 @@ def test_full_init():
         'data_path': data_path,
         'blooms': blooms,
         'error_initial': 0.00012,
-        'meta_filename': '/foo/bar/baz/meta.json',
-        'blooms_path': '/foo/bar/baz/blooms',
         'seconds_per_tick': timing_bloom.seconds_per_tick,
         'disable_optimizations': disable_optimizations,
     })
+
+    data_path, meta_filename, blooms_path = _get_paths(bloom.data_path, None)
+    assert meta_filename == '/foo/bar/baz/meta.json'
+    assert blooms_path == '/foo/bar/baz/blooms'
 
     ticker.setup.assert_called_once_with(bloom.decay, timing_bloom.seconds_per_tick)
     ticker.start.assert_called_once_with()
@@ -281,29 +275,11 @@ def test_get_next_id_existing(timing_bloom_mock):
 
 
 @patch('fuggetaboutit.scaling_timing_bloom_filter.TimingBloomFilter')
-def test_get_bloom_path_none(timing_bloom_mock):
-    # Get a bloom
-    bloom = get_bloom(data_path=None)
-
-    # Call get bloom path
-    path = bloom.get_bloom_path(bloom_id=5)
-
-    # Check the result
-    expected_path = None
-    assert expected_path == path
-
-
-@patch('fuggetaboutit.scaling_timing_bloom_filter.TimingBloomFilter')
 def test_get_bloom_path(timing_bloom_mock):
-    # Get a bloom
     bloom = get_bloom(data_path='/test/path')
-
-    # Call get bloom path
-    path = bloom.get_bloom_path(bloom_id=5)
-
-    # Check the result
-    expected_path = '/test/path/blooms/5'
-    assert expected_path == path
+    _, _, blooms_path = _get_paths(bloom.data_path, None)
+    path = bloom.get_bloom_path(blooms_path, bloom_id=5)
+    assert path == '/test/path/blooms/5'
 
 
 def test_get_size():
@@ -399,8 +375,6 @@ def test_add_new_bloom_without_id(timing_bloom_mock):
     # Setup mocks
     bloom.get_capacity_for_id = MagicMock(bloom.get_capacity_for_id)
     bloom.get_capacity_for_id.return_value = 1234
-    bloom.get_bloom_path = MagicMock(bloom.get_bloom_path)
-    bloom.get_bloom_path.return_value = '/foo/bar'
 
     # Call add bloom
     returned_bloom = bloom._add_new_bloom()
@@ -411,7 +385,6 @@ def test_add_new_bloom_without_id(timing_bloom_mock):
         decay_time=86400,
         error=0.00005,
         id=1,
-        data_path='/foo/bar',
         disable_optimizations=False,
     )
 
@@ -424,7 +397,6 @@ def test_add_new_bloom_without_id(timing_bloom_mock):
 
     # Check that other methods were called as expected
     bloom.get_capacity_for_id.assert_called_once_with(1)
-    bloom.get_bloom_path.assert_called_once_with(1)
 
 
 @patch('fuggetaboutit.scaling_timing_bloom_filter.TimingBloomFilter')
@@ -436,8 +408,6 @@ def test_add_new_bloom_with_id(timing_bloom_mock):
     # Setup mocks
     bloom.get_capacity_for_id = MagicMock(bloom.get_capacity_for_id)
     bloom.get_capacity_for_id.return_value = 1234
-    bloom.get_bloom_path = MagicMock(bloom.get_bloom_path)
-    bloom.get_bloom_path.return_value = '/foo/bar'
 
     # Call add bloom
     returned_bloom = bloom._add_new_bloom(bloom_id=5)
@@ -448,7 +418,6 @@ def test_add_new_bloom_with_id(timing_bloom_mock):
         decay_time=86400,
         error=3.125e-06,
         id=5,
-        data_path='/foo/bar',
         disable_optimizations=False,
     )
 
@@ -461,7 +430,6 @@ def test_add_new_bloom_with_id(timing_bloom_mock):
 
     # Check that other methods were called as expected
     bloom.get_capacity_for_id.assert_called_once_with(5)
-    bloom.get_bloom_path.assert_called_once_with(5)
 
 
 def test_get_bloom_iter_insert_tail():
@@ -839,85 +807,13 @@ def test_get_meta():
     assert config == meta
 
 
-@patch('os.makedirs')
-@patch('os.path.exists')
-def test_check_data_path__no_data_path(exists_mock, makedirs_mock):
+def test_check_data_path__no_data_path():
     # Get a bloom
     bloom = get_bloom(bloom_mocks=[{}], data_path=None)
 
     # Call check data path and make sure it raises the expected exception
     with pytest.raises(PersistenceDisabledException):
-        bloom.check_data_path()
-
-    # Make sure system calls were not made
-    assert not exists_mock.called
-    assert not makedirs_mock.called
-
-
-@patch('os.makedirs')
-@patch('os.path.exists')
-def test_check_data_path__missing_data_path(exists_mock, makedirs_mock):
-    # Get a bloom
-    path = '/does/not/exist/'
-    bloom = get_bloom(bloom_mocks=[{}], data_path=path)
-
-    # Setup mocks
-    exists_mock.return_value = False
-    
-    # Call check data path
-    bloom.check_data_path()
-
-    # Check that the expected system calls were made
-    exists_mock.assert_called_once_with(path)
-    makedirs_mock.assert_called_once_with(path)
-
-
-@patch('os.makedirs')
-@patch('os.path.exists')
-def test_check_data_path__existing_data_path(exists_mock, makedirs_mock):
-    # Get a bloom
-    path = '/does/not/exist/'
-    bloom = get_bloom(bloom_mocks=[{}], data_path=path)
-
-    # Setup mocks
-    exists_mock.return_value = True
-    
-    # Call check data path
-    bloom.check_data_path()
-
-    # Check that the expected system calls were made
-    exists_mock.assert_called_once_with(path)
-    assert not makedirs_mock.called
-
-
-def test_save():
-    # Get a bloom
-    bloom = get_bloom(bloom_mocks=[{}, {}])
-
-    # Setup mocks
-    save_target_mock = mock_open()
-    bloom.check_data_path = MagicMock(bloom.check_data_path)
-    bloom.get_meta = MagicMock(bloom.get_meta)
-    bloom.get_meta.return_value = {'foo': 'bar', 'fizz': 'buzz'}
-
-    # Call save
-    with patch('__builtin__.open', save_target_mock, create=True):
-        bloom.save()
-
-    # Make sure checks were performed
-    bloom.check_data_path.assert_called_once_with()
-
-    # Make sure get meta was called
-    bloom.get_meta.assert_called_once_with()
-
-    # Make sure the meta data got saved
-    save_target_mock.assert_called_once_with(bloom.meta_filename, 'w')
-    handle = save_target_mock()
-    assert handle.write.called
-
-    # Make sure save got called on each of the sub blooms
-    for sub in bloom.blooms:
-        sub.save.assert_called_once_with()
+        _get_paths(bloom.data_path, None)
 
 
 @patch('os.path.isdir')

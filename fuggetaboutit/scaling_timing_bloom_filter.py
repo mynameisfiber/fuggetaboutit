@@ -11,6 +11,19 @@ from .exceptions import PersistenceDisabledException
 from .tickers import NoOpTicker
 from .timing_bloom_filter import TimingBloomFilter
 
+META_FILENAME = 'meta.json'
+BLOOMS_PATH = 'blooms'
+
+def _get_paths(obj_data_path, arg_data_path):
+    if not (obj_data_path or arg_data_path):
+        raise PersistenceDisabledException("You cannot save without having data_path set.")
+    data_path = arg_data_path or obj_data_path
+
+    data_path = os.path.normpath(data_path)
+    meta_path = os.path.join(data_path, META_FILENAME)
+    blooms_path = os.path.join(data_path, BLOOMS_PATH)
+    return data_path, meta_path, blooms_path
+
 class ScalingTimingBloomFilter(object):
     """
     A bloom filter that will decay old values and scale up capacity as
@@ -73,13 +86,9 @@ class ScalingTimingBloomFilter(object):
         self.seconds_per_tick = None
         self.disable_optimizations = disable_optimizations
 
-        self.data_path = data_path
+        self.data_path = None
         if data_path:
-            self.meta_filename = os.path.join(data_path, 'meta.json')
-            self.blooms_path = os.path.join(data_path, 'blooms')
-        else:
-            self.meta_filename = None
-            self.blooms_path = None
+            self.data_path = os.path.normpath(data_path)
 
         if blooms:
             self.blooms = blooms
@@ -106,11 +115,8 @@ class ScalingTimingBloomFilter(object):
             return max_id + 1
         return 0
 
-    def get_bloom_path(self, bloom_id):
-        if self.blooms_path is None:
-            return None
-
-        return os.path.join(self.blooms_path, str(bloom_id))
+    def get_bloom_path(self, blooms_path, bloom_id):
+        return os.path.join(blooms_path, str(bloom_id))
 
     def get_capacity_for_id(self, bloom_id):
         if self.growth_factor:
@@ -130,7 +136,6 @@ class ScalingTimingBloomFilter(object):
             decay_time=self.decay_time,
             error=error,
             id=bloom_id,
-            data_path=self.get_bloom_path(bloom_id),
             disable_optimizations=self.disable_optimizations,
         )
         self.blooms.append(bloom)
@@ -288,23 +293,19 @@ class ScalingTimingBloomFilter(object):
             'disable_optimizations': self.disable_optimizations,
         }
 
-    def check_data_path(self):
-        if not self.data_path:
-            raise PersistenceDisabledException("You cannot save without having data_path set.")
+    def save(self, data_path=None):
+        data_path, meta_filename, blooms_path = _get_paths(self.data_path, data_path)
 
-        if not os.path.exists(self.data_path):
-            logging.info("Data path doesn't exist, creating:  %s" % self.data_path)
-            os.makedirs(self.data_path)
-
-    def save(self):
-        self.check_data_path()
+        if not os.path.exists(data_path):
+            logging.debug("Data path doesn't exist, creating:  %s" % data_path)
+            os.makedirs(data_path)
 
         meta = self.get_meta()
-        with open(self.meta_filename, 'w') as meta_file:
+        with open(meta_filename, 'w') as meta_file:
             json.dump(meta, meta_file)
 
         for bloom in self.blooms:
-            bloom.save()
+            bloom.save(self.get_bloom_path(blooms_path, bloom.id))
 
     @classmethod
     def discover_blooms(cls, blooms_path):
@@ -321,9 +322,8 @@ class ScalingTimingBloomFilter(object):
 
     @classmethod
     def load(cls, data_path, ticker=None):
-        logging.debug("Loading bloom from %s" % data_path)
-        meta_filename = os.path.join(data_path, 'meta.json')
-        blooms_path = os.path.join(data_path, 'blooms')
+        logging.debug("Loading scaling timing bloom from %s" % data_path)
+        data_path, meta_filename, blooms_path = _get_paths(None, data_path)
         blooms = []
         
         kwargs = {'data_path': data_path, 'ticker': ticker}
@@ -340,7 +340,14 @@ class ScalingTimingBloomFilter(object):
             logging.warn("No sub-blooms found in '%s'" % blooms_path)
 
         kwargs['blooms'] = blooms
-        return cls(**kwargs)
+
+        capacity = kwargs['capacity']
+        del kwargs['capacity']
+
+        decay_time = kwargs['decay_time']
+        del kwargs['decay_time']
+
+        return cls(capacity, decay_time, **kwargs)
 
     def __contains__(self, key):
         return self.contains(key)
