@@ -1,7 +1,6 @@
 from copy import copy
-import json
 
-from mock import MagicMock, mock_open, patch, sentinel
+from mock import patch, sentinel
 import numpy as np
 import pytest
 
