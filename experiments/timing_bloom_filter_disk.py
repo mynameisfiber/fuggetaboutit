@@ -4,7 +4,6 @@ import tornado.ioloop
 import tornado.testing
 import tornado.gen
 import numpy as np
-import struct
 import time
 import math
 import h5py
