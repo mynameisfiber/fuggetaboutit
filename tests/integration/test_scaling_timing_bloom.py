@@ -1,5 +1,6 @@
 from copy import copy
 import time
+import random
 
 from fuggetaboutit.scaling_timing_bloom_filter import ScalingTimingBloomFilter
 
@@ -26,6 +27,15 @@ def get_bloom( n=100, **updates):
     assert not bloom.contains(str(n + 1))
 
     return bloom
+
+def get_pseudorandom_words(num_words=1000, word_length=12):
+    random.seed(1234)
+    all_letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvqxyz"
+    result_list = []
+    for _ in xrange(num_words):
+        word = "".join(random.choice(all_letters) for _ in range(word_length))
+        result_list.append(word)
+    return result_list
 
 
 def test_bloom_initial_save_and_load_with_optimization(tmpdir):
@@ -207,3 +217,10 @@ def test_save_and_load_with_scaling(tmpdir):
     assert third_gen_bloom.contains('101')
     assert third_gen_bloom.contains('150')
     assert not third_gen_bloom.contains('201')
+
+
+def test_scaling_bloom_accuracy(tmpdir):
+    testing_dir = tmpdir.mkdir('bloom_test')
+    temp_path = str(testing_dir)
+
+    test_words = get_pseudorandom_words(num_words=9000)
