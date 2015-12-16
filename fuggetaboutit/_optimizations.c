@@ -41,11 +41,11 @@ PyObject* py_timing_bloom_add(PyObject* self, PyObject* args) {
 
         n = values[access_index];
         if (index % 2 == 0) {
-            temp = (n & 0xf0) >> 4;
-            n = ((tick << 4) & 0xf0) + (n & 0x0f);
+            temp = n & 0xf0;
+            n = ((tick << 4) & 0xf0) | (n & 0x0f);
         } else {
-            temp = (n & 0x0f);
-            n = (tick & 0x0f) + (n & 0xf0);
+            temp = n & 0x0f;
+            n = (tick & 0x0f) | (n & 0xf0);
         }
 
         if (temp == 0) {

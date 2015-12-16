@@ -1,22 +1,39 @@
 #!/usr/bin/env python
 
-import tornado.ioloop
-from timing_bloom_filter import TimingBloomFilter, _ENTRIES_PER_8BYTE
+import json
+import logging
 import math
-import struct
 import operator
+import os
+from shutil import rmtree
+
+from .exceptions import PersistenceDisabledException
+from .tickers import NoOpTicker
+from .timing_bloom_filter import TimingBloomFilter
+
+META_FILENAME = 'meta.json'
+BLOOMS_PATH = 'blooms'
+
+def _get_paths(obj_data_path, arg_data_path):
+    if not (obj_data_path or arg_data_path):
+        raise PersistenceDisabledException("You cannot save without having data_path set.")
+    data_path = arg_data_path or obj_data_path
+
+    data_path = os.path.normpath(data_path)
+    meta_path = os.path.join(data_path, META_FILENAME)
+    blooms_path = os.path.join(data_path, BLOOMS_PATH)
+    return data_path, meta_path, blooms_path
 
 class ScalingTimingBloomFilter(object):
     """
     A bloom filter that will decay old values and scale up capacity as
     needed.  This bloom filter will automatically decay values such that an
     item added will be removed from the bloom after ``decay_time`` seconds.
-    The underlying bloom has initial capacity ``capacity`` and maximum error
-    ``error``.  In addition, the bloom will automatically scale using
-    Almeida's method from "Scalable Bloom Filters" using an error tightening
-    ratio and growth factor given by ``error_tightening_ratio`` and
-    ``growth_factor``.  A bloom filter will be scaled up when approximatly
-    ``max_fill_factor`` percent of the capacity of the bloom filter are in use.
+    The underlying bloom has initial ``capacity`` and maximum ``error``.
+    In addition, the bloom will automatically scale using Almeida's method
+    from "Scalable Bloom Filters" using ``error_tightening_ratio`` and
+    ``growth_factor``.  A bloom filter will be scaled up when approximately
+    ``max_fill_factor`` of the capacity of the bloom filter is in use.
     Conversely, the bloom will be scaled down if there is one bloom left and it
     has a fill percentage less than ``min_fill_factor``.  Together, these two
     fill factor conditionals attempt to keep the scaling bloom at the right
@@ -39,20 +56,20 @@ class ScalingTimingBloomFilter(object):
     
     :param max_fill_factor: maximum fill factor of a bloom to be considered full
     :type max_fill_factor: min_fill_factor < float < 1
-
-    :param max_fill_factor: minimum fill factor of a bloom to be considered active
-    :type max_fill_factor: 0 < float < max_fill_factor or None
     
-    :param insert_order: Whether to insert in order to optimize compactness or convergence
-    :type insert_order: 'compact' or 'converge'
-
-    :param ioloop: an instance of an IOLoop to attatch the periodic decay operation to
+    :param min_fill_factor: minimum fill factor of a bloom to be considered active
+    :type min_fill_factor: 0 < float < max_fill_factor or None
+    
+    :param insert_tail: Whether to insert in order to optimize compactness or convergence
+    :type insert_tail: True (convergence) or False (compactness)
+    
+    :param ioloop: an instance of an IOLoop to attach the periodic decay operation to
     :type ioloop: tornado.ioloop.IOLoop or None
     """
-    def __init__(self, capacity, decay_time, error=0.005,
+    def __init__(self, capacity, decay_time, ticker=None, data_path=None, error=0.005,
             error_tightening_ratio=0.5, growth_factor=2, min_fill_factor=0.2,
-            max_fill_factor=0.8, insert_order='converge', ioloop=None):
-        assert (0 or min_fill_factor) < max_fill_factor <= 1, "max_fill_factor must be min_fill_factor<max_fill_factor<=1"
+            max_fill_factor=0.8, insert_tail=True, blooms=None, disable_optimizations=False):
+        assert (min_fill_factor or 0) < max_fill_factor <= 1, "max_fill_factor must be min_fill_factor<max_fill_factor<=1"
         assert min_fill_factor is None or 0 < min_fill_factor < max_fill_factor, "min_fill_factor must be None or 0<min_fill_factor<max_fill_factor"
         assert growth_factor is None or 0 < growth_factor, "growth_factor must be None or >0"
         assert 0 < error < 1, "error must be 0 < error < 1"
@@ -61,77 +78,79 @@ class ScalingTimingBloomFilter(object):
         self.error_tightening_ratio = error_tightening_ratio
         self.error_initial = self.error * (1 - self.error_tightening_ratio)
         self.growth_factor = growth_factor
-
         self.capacity = capacity
         self.decay_time = decay_time
-
-        self.blooms = [ ]
-        self._add_new_bloom()
-
         self.max_fill_factor = max_fill_factor
         self.min_fill_factor = min_fill_factor
+        self.insert_tail = insert_tail
+        self.seconds_per_tick = None
+        self.disable_optimizations = disable_optimizations
 
-        self.insert_tail = (insert_order == 'converge')
+        self.data_path = None
+        if data_path:
+            self.data_path = os.path.normpath(data_path)
 
-        self.set_ioloop(ioloop)
+        if blooms:
+            self.blooms = blooms
+        else:
+            self.blooms = [ ]
+            self._add_new_bloom()
 
+        if ticker is None:
+            self.ticker = NoOpTicker()
+        else:
+            self.ticker = ticker
 
-    def set_ioloop(self, ioloop=None):
-        """
-        Set a new IOLoop to attatch the decay operation to.  ``stop()`` should be
-        called before changing the ioloop.
-
-        :param ioloop: an instance of an IOLoop to attatch the periodic decay operation to
-        :type ioloop: tornado.ioloop.IOLoop or None
-        """
-        self._ioloop = ioloop or tornado.ioloop.IOLoop.instance()
         self._setup_decay()
 
+
     def _setup_decay(self):
-        self.ring_size = (1 << 8 / _ENTRIES_PER_8BYTE) - 1
-        self.dN = self.ring_size / 2
-        self.seconds_per_tick = self.decay_time / float(self.dN)
-        self.time_per_decay = self.seconds_per_tick * 1000.0 
-        try:
-            self.stop()
-        except:
-            pass
-        self._callbacktimer = tornado.ioloop.PeriodicCallback(self.decay, self.time_per_decay, self._ioloop)
+        self.seconds_per_tick = self.blooms[0].seconds_per_tick
+        self.ticker.setup(self.decay, self.seconds_per_tick)
+        self.ticker.start()
 
     def _get_next_id(self):
         if self.blooms:
-            max_id = max(b["id"] for b in self.blooms)
+            max_id = max(b.id for b in self.blooms)
             return max_id + 1
         return 0
 
-    def _add_new_bloom(self, _id=None):
-        _id = _id or self._get_next_id()
-        error = self.error_initial * self.error_tightening_ratio ** _id
+    def get_bloom_path(self, blooms_path, bloom_id):
+        return os.path.join(blooms_path, str(bloom_id))
+
+    def get_capacity_for_id(self, bloom_id):
         if self.growth_factor:
-            capacity = int(math.log(2) * self.capacity * self.growth_factor ** _id)
+            capacity = int(math.log(2) * self.capacity * self.growth_factor ** bloom_id)
         else:
             capacity = self.capacity
-        self.blooms.append({
-            "id" : _id,
-            "new" : True,
-            "error" : error, 
-            "capacity" : capacity,
-            "bloom" : TimingBloomFilter(
-                capacity = capacity, 
-                decay_time = self.decay_time, 
-                error = error, 
-            ),
-        })
 
-    def size(self):
+        return capacity
+
+    def _add_new_bloom(self, bloom_id=None):
+        bloom_id = bloom_id or self._get_next_id()
+        error = self.error_initial * (self.error_tightening_ratio ** bloom_id)
+        capacity = self.get_capacity_for_id(bloom_id)
+
+        bloom = TimingBloomFilter(
+            capacity=capacity,
+            decay_time=self.decay_time,
+            error=error,
+            id=bloom_id,
+            disable_optimizations=self.disable_optimizations,
+        )
+        self.blooms.append(bloom)
+
+        return bloom
+
+    def get_size(self):
         """
         Returns the approximate size of the current bloom state.
 
         :rtype: float
         """
-        return sum(b["bloom"].size() for b in self.blooms)
+        return sum(b.get_size() for b in self.blooms)
 
-    def expected_error(self):
+    def get_expected_error(self):
         """
         Return the current expected error rate from the blooms.  This should
         always be smaller than the maximum error given in the constructor.
@@ -140,7 +159,7 @@ class ScalingTimingBloomFilter(object):
         """
         if not self.blooms:
             return 0.0
-        return 1 - reduce(operator.mul, (1 - bloom["error"] for bloom in self.blooms))
+        return 1 - reduce(operator.mul, (1 - bloom.error for bloom in self.blooms))
 
     def add(self, key, timestamp=None):
         """
@@ -154,22 +173,42 @@ class ScalingTimingBloomFilter(object):
         :param timestamp: timestamp of the item
         :type timestamp: int
         """
+        cur_bloom = self.get_active_bloom()
+        cur_bloom.add(key, timestamp)
+
+    def get_active_bloom(self):
         cur_bloom = None
-        bloom_iter = None
+        bloom_iter = self.get_bloom_iter()
+
+        bloom_count = len(self.blooms)
+        logging.debug("Available Blooms:  %d" % bloom_count)
+        for n, bloom in enumerate(bloom_iter):
+            if self.insert_tail:
+                n = bloom_count - n
+            logging.debug("Checking if bloom %d has available capacity..." % n)
+            size = bloom.get_size()
+            logging.debug("size:  %r" % size)
+            logging.debug("max_fill_factor:  %r" % self.max_fill_factor)
+            logging.debug("capacity:  %r" % bloom.capacity)
+
+            if size < self.max_fill_factor * bloom.capacity:
+                logging.debug("Bloom %d has available capacity." % n)
+                cur_bloom = bloom
+                break
+
+        if cur_bloom is None:
+            logging.debug("No available blooms, adding new bloom")
+            cur_bloom = self._add_new_bloom()
+
+        return cur_bloom
+
+    def get_bloom_iter(self):
         if self.insert_tail:
             bloom_iter = reversed(self.blooms)
         else:
             bloom_iter = iter(self.blooms)
-        for bloom in bloom_iter:
-            if bloom["bloom"].size() < self.max_fill_factor * bloom["capacity"]:
-                cur_bloom = bloom
-                break
-        if cur_bloom is None:
-            self._add_new_bloom()
-            cur_bloom = self.blooms[-1]
-        cur_bloom["bloom"].add(key, timestamp)
-        cur_bloom["new"] = False
-        return self
+
+        return bloom_iter
 
     def contains(self, key):
         """
@@ -180,162 +219,142 @@ class ScalingTimingBloomFilter(object):
 
         :rtype: bool
         """
-        for bloom in self.blooms:
-            if key in bloom["bloom"]:
-                return True
-        return False
+        return any(bloom.contains(key) for bloom in self.blooms)
 
     def decay(self):
         """
         Decay the bloom filter and remove items that are older than
         ``decay_time``.  This will also remove empty bloom filters.
         """
-        num_empty_blooms = 0
         for bloom in self.blooms:
-            bloom["bloom"].decay()
-            num_empty_blooms += (bloom["bloom"].num_non_zero == 0)
+            bloom.decay()
+            
+
+        self.cleanup_empty_blooms()
+        self.try_to_shrink()
+
+    def cleanup_empty_blooms(self):
+        num_empty_blooms = sum(bloom.num_non_zero == 0 for bloom in self.blooms)
 
         if num_empty_blooms:
             to_remove = num_empty_blooms
-            possible_blooms = sorted(enumerate(self.blooms), key=lambda b : b[1]["capacity"] / b[1]["error"], reverse=True)
-            for i, bloom in possible_blooms:
-                if bloom["bloom"].num_non_zero == 0 and not bloom["new"]:
-                    item = self.blooms.pop(i)
-                    del item["bloom"]
+            for i, bloom in enumerate(self.blooms):
+                if bloom.num_non_zero == 0:
+                    rmtree(bloom.data_path)
+                    del self.blooms[i]
                     to_remove -= 1
-                if not to_remove:
-                    break
 
-        # In the case that there is only one active bloom filter, check if it's
-        # load factor is <= the minimum load factor and, if so, create a new
-        # bloom with a smaller capacity
+                    if to_remove <= 0:
+                        break
+
+        return num_empty_blooms
+
+    def try_to_shrink(self):
+        """
+        In the case that there is only one active bloom filter, check if its
+        load factor is <= the minimum load factor and, if so, create a new
+        bloom with a smaller capacity
+        """
+        did_shrink = False
+
         if self.min_fill_factor and len(self.blooms) == 1:
             bloom = self.blooms[0]
-            if 0 < bloom["bloom"].size() < self.min_fill_factor * bloom["capacity"]:
-                max_id = bloom["id"]
+            if 0 < bloom.get_size() < self.min_fill_factor * bloom.capacity:
+                max_id = bloom.id
                 if max_id > 0:
                     self._add_new_bloom(max_id - 1)
+                    did_shrink = True
+
+        return did_shrink
 
     def start(self):
         """
         Start a periodic callback on the IOLoop to decay the bloom at every
         half ``decay_time``.
         """
-        assert not self._callbacktimer._running, "Decay timer already running"
-        self._callbacktimer.start()
-        return self
+        self.ticker.start()
 
     def stop(self):
         """
         Stop the periodic decay operation
         """
-        assert self._callbacktimer._running, "Decay timer not running"
-        self._callbacktimer.stop()
-        return self
+        self.ticker.stop()
 
-    SCALING_TIMING_HEADER = "QddddddQd"
-    SCALING_TIMING_HEADER_BLOOM = "Qdd"
-    def tofile(self, f):
-        """
-        Saves the current bloom to the file object ``f``.
+    def get_meta(self):
+        return {
+            'capacity': self.capacity,
+            'decay_time': self.decay_time,
+            'error': self.error,
+            'error_tightening_ratio': self.error_tightening_ratio,
+            'growth_factor': self.growth_factor,
+            'min_fill_factor': self.min_fill_factor,
+            'max_fill_factor': self.max_fill_factor,
+            'insert_tail': self.insert_tail,
+            'disable_optimizations': self.disable_optimizations,
+        }
 
-        :param f: File to save the bloom filter to
-        :type f: file
-        """
-        header = struct.pack(self.SCALING_TIMING_HEADER, self.capacity, self.decay_time, self.error, self.error_tightening_ratio, self.growth_factor or -1, self.max_fill_factor, self.min_fill_factor or -1, len(self.blooms), self.error_initial)
-        f.write(header)
+    def save(self, data_path=None):
+        data_path, meta_filename, blooms_path = _get_paths(self.data_path, data_path)
+
+        if not os.path.exists(data_path):
+            logging.debug("Data path doesn't exist, creating:  %s" % data_path)
+            os.makedirs(data_path)
+
+        meta = self.get_meta()
+        with open(meta_filename, 'w') as meta_file:
+            json.dump(meta, meta_file)
+
         for bloom in self.blooms:
-            bheader = struct.pack(self.SCALING_TIMING_HEADER_BLOOM, bloom["id"], bloom["error"], bloom["capacity"])
-            f.write(bheader)
-            bloom["bloom"].tofile(f)
+            bloom.save(self.get_bloom_path(blooms_path, bloom.id))
 
     @classmethod
-    def fromfile(cls, f):
-        """
-        Reads the bloom from the given file ``f``.
+    def discover_blooms(cls, blooms_path):
+        paths = []
+        for bloom_path in os.listdir(blooms_path):
+            full_path = os.path.join(blooms_path, bloom_path)
+            if not os.path.isdir(full_path):
+                continue
 
-        :param f: File to save the bloom filter to
-        :type f: file
+            logging.debug("Found a sub-bloom at '%s'" % full_path)
+            paths.append(full_path)
 
-        :rtype: ScalingTimingBloomFilter
-        """
-        self = cls.__new__(cls)
-        sizeof_header = struct.calcsize(cls.SCALING_TIMING_HEADER)
-        sizeof_header_bloom = struct.calcsize(cls.SCALING_TIMING_HEADER_BLOOM)
+        return paths
 
-        header = f.read(sizeof_header)
-        self.capacity, self.decay_time, self.error, self.error_tightening_ratio, self.growth_factor, self.max_fill_factor, self.min_fill_factor, N, self.error_initial = struct.unpack(cls.SCALING_TIMING_HEADER, header)
+    @classmethod
+    def load(cls, data_path, ticker=None):
+        logging.debug("Loading scaling timing bloom from %s" % data_path)
+        data_path, meta_filename, blooms_path = _get_paths(None, data_path)
+        blooms = []
+        
+        kwargs = {'data_path': data_path, 'ticker': ticker}
 
-        if self.min_fill_factor == -1:
-            self.growth_factor = None
-        if self.growth_factor == -1:
-            self.growth_factor = None
+        with open(meta_filename, 'r') as meta_file:
+            kwargs.update(json.load(meta_file))
 
-        self.blooms = [ ]
-        for i in range(N):
-            bheader = f.read(sizeof_header_bloom)
-            _id, error, capacity = struct.unpack(cls.SCALING_TIMING_HEADER_BLOOM, bheader)
-            bloom = TimingBloomFilter.fromfile(f)
-            self.blooms.append({
-                "id" : _id,
-                "error" : error,
-                "capacity" : capacity,
-                "bloom" : bloom,
-                "new" : False,
-            })
+        bloom_paths = cls.discover_blooms(blooms_path)
+        for path in bloom_paths:
+            logging.debug("Loading sub-bloom from '%s'" % path)
+            blooms.append(TimingBloomFilter.load(path))
 
-        self.insert_tail = True #TODO: have this be in the file
-        self._ioloop = None
-        self._setup_decay()    
-        return self
+        if not blooms:
+            logging.warn("No sub-blooms found in '%s'" % blooms_path)
+
+        kwargs['blooms'] = blooms
+
+        capacity = kwargs['capacity']
+        del kwargs['capacity']
+
+        decay_time = kwargs['decay_time']
+        del kwargs['decay_time']
+
+        return cls(capacity, decay_time, **kwargs)
 
     def __contains__(self, key):
         return self.contains(key)
 
     def __add__(self, other):
-        return self.add(other)
+        self.add(other)
+        return self
 
     def __len__(self):
-        return self.size()
-
-
-if __name__ == "__main__":
-    from utils import TimingBlock
-    import time
-    N = int(500)
-    decay_time = 5
-
-    print "Creating ScalingTimingBloomFilter with capacity=%d and decay_time=%f" % (N, decay_time)
-    with TimingBlock("Initialization"):
-        tbf = ScalingTimingBloomFilter(N, decay_time=decay_time)
-
-    with TimingBlock("Adding", 2*N):
-        for i in xrange(2*N):
-            tbf.add("idx_%d" % i)
-    last_insert = time.time()
-
-    print "State of blooms: %d blooms with expected error %.2f%%" % (len(tbf.blooms), tbf.expected_error()*100.)
-
-    with TimingBlock("Contains(+)", 2*N):
-        for i in xrange(2*N):
-            assert tbf.contains("idx_%d" % i), "False negative"
-
-    with TimingBlock("Contains(-)", N):
-        c = 0
-        for i in xrange(2*N, 3*N):
-            c += tbf.contains("idx_%d" % i)
-        assert c / float(N) <= tbf.error, "Too many false positives: %f > %f" % (c/float(N), tbf.error)
-
-    with TimingBlock("Decaying", 1):
-        tbf.decay()
-    time.sleep(decay_time - time.time() + last_insert) 
-    with TimingBlock("Decaying", 1):
-        tbf.decay()
-
-    print "State of blooms: %d blooms with expected error %.2f%%" % (len(tbf.blooms), tbf.expected_error()*100.)
-
-    with TimingBlock("Contains(-)", 2*N):
-        c = 0
-        for i in xrange(N, 2*N):
-            c += tbf.contains("idx_%d" % i)
-        assert c / float(N) <= tbf.error, "Too many false positives: %f > %f" % (c/float(N), tbf.error)
+        return self.get_size()
