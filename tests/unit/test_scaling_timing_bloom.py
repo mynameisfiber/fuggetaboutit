@@ -865,9 +865,6 @@ def test_load__with_blooms(timing_bloom_mock):
     # Check that metadata was opened as expected
     open_mock.assert_called_once_with(data_path + '/meta.json', 'r')
 
-    # Check that discover_blooms was called as expected
-    ScalingTimingBloomFilter.discover_blooms.assert_called_once_with(data_path + '/blooms')
-
     # Check that the loaded bloom looks as expected
     for key, value in test_data.iteritems():
         assert value == getattr(loaded, key)
