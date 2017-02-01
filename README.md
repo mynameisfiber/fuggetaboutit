@@ -1,7 +1,6 @@
 # Fugget About It
 [![Build Status](https://secure.travis-ci.org/mynameisfiber/fuggetaboutit.png?branch=master)](http://travis-ci.org/mynameisfiber/fuggetaboutit)
-[![Downloads](https://pypip.in/d/fuggetaboutit/badge.png)](https://pypi.python.org/pypi/fuggetaboutit/)
-[![Downloads](https://pypip.in/v/fuggetaboutit/badge.png)](https://pypi.python.org/pypi/fuggetaboutit/)
+[![PyPI version](https://badge.fury.io/py/fuggetaboutit.svg)](https://badge.fury.io/py/fuggetaboutit)
 
 > auto-scaling probabilistic time windowed set inclusion datastructure
 
