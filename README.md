@@ -5,7 +5,7 @@
 
 > auto-scaling probabilistic time windowed set inclusion datastructure
 
-[_docs_](http://micha.gd/fuggetaboutit)
+[_docs_](http://micha.codes/fuggetaboutit)
 
 ### what is?
 
